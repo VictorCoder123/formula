@@ -17,6 +17,8 @@
 
         private static readonly ProgramName apiErrorName = new ProgramName();
 
+        public static ProgramName emptyName = new ProgramName();
+
         private readonly Uri workingUri;
 
         public static Uri EnvironmentScheme
