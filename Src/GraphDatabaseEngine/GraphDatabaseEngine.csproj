@@ -153,10 +153,11 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="FormulaTest.cs" />
-    <Compile Include="GraphDatabaseTest.cs" />
-    <Compile Include="GraphGenerator.cs" />
-    <Compile Include="Program.cs" />
+    <Compile Include="GraphDBExecutor.cs" />
+    <Compile Include="Test\FormulaTest.cs" />
+    <Compile Include="Test\GraphDatabaseTest.cs" />
+    <Compile Include="Test\GraphGenerator.cs" />
+    <Compile Include="CommandLine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
@@ -170,6 +171,7 @@
       <DependentUpon>Settings.settings</DependentUpon>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
     </Compile>
+    <Compile Include="GremlinTranslator.cs" />
     <EmbeddedResource Include="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
