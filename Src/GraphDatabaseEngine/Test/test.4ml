@@ -1,0 +1,31 @@
+﻿domain Model
+{
+	A ::= new (id: Integer).
+	B ::= new (id: String).
+	C ::= new (x: Integer, y: Integer).
+	D ::= new (x: Integer, y: String).
+	E ::= new (x: String, y: String).
+	F ::= new (x: A, y: B).
+	G ::= new (x: C, y: E).
+	H ::= new (x: A, y: A).
+
+	I ::= A + B + C + D + E.
+
+	D(a, b) :- A(a), B(b).
+}
+
+model m of Model
+{
+	A(0).
+	a1 is A(1).
+	b1 is B("hello").
+	c1 is C(1, 2).
+	d1 is D(2, "hi").
+	e1 is E("wxyz", "zyxw").
+	e2 is E("same", "same").
+
+	f1 is F(a1, b1).
+	f2 is F(A(0), B("world")).
+	g1 is G(c1, e1).
+	h1 is H(a1, a1).
+}
