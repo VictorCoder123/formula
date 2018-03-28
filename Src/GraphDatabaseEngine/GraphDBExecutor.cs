@@ -135,9 +135,21 @@
 
         public void Test2()
         {
+            // Query: A(hi), F(a, b), H(a, a)
             var list = NewTraversal(graph).V()
-                      .Match<Vertex>(__.As("a").Out("contains").As("b").Where("a", P.Eq("b")))
-                      .Select<Vertex>("a").Values<int>("guid").ToList();
+                      .Match<Vertex>(
+                          __.As("a").Out("type").Has("type", "A"),
+                          __.As("a").Out("ARG_" + 0).Out("type").Has("type", "F"),
+                          __.As("a").Out("type").Has("type", "A"),
+                          __.As("a").Out("ARG_" + 0).Out("type").Has("type", "H"),
+                          __.As("a").Out("type").Has("type", "A"),
+                          __.As("a").Out("ARG_" + 1).Out("type").Has("type", "H"),
+                          __.As("b").Out("type").Has("type", "B"),
+                          __.As("b").Out("ARG_" + 1).Out("type").Has("type", "F"),
+                          __.As("hi").Out("type").Has("type", "Integer"),
+                          __.As("hi").Out("ARG_" + 0).Out("type").Has("type", "A")
+                      )
+                      .Select<Vertex>("a").Values<string>("id").ToList();
 
             foreach (var item in list)
             {

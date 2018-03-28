@@ -17,7 +17,7 @@
             GraphDBExecutor executor = new GraphDBExecutor("localhost", 8182);
             GremlinTranslator translator = new GremlinTranslator("test.4ml");
             translator.ExportToGraphDB(executor);
-            executor.Test1();
+            executor.Test2();
             //translator.TranslateQuery(executor, "A(hi), F(a, b), H(a, a)");
 
             string line = Console.ReadLine();
