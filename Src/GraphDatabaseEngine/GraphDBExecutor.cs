@@ -33,15 +33,16 @@
         {
             return graph.Traversal().WithRemote(new DriverRemoteConnection(new GremlinClient(new GremlinServer(address, port))));
         }
-        
-        public void AddVertex(KeyValuePair<string, string> node)
+
+        // Add node with single property defined in key/value pair.
+        public void AddVertex(string key, object value)
         {
             var source = NewTraversal(graph).AddV()
-                .Property("id", node.Key)
-                .Property("type", node.Value)
+                .Property(key, value)
                 .ToList();
         }
 
+        // Add node with a list of properties in the format of key/value pairs.
         public void AddVertex(List<KeyValuePair<string, object>> properties)
         {
             var source = NewTraversal(graph).AddV();
@@ -52,40 +53,79 @@
             source.ToList();
         }
 
-        // Connect Cnst to FuncTerm.
-        public void AddEdgeToCnst(string id, object cnst, string edgeType)
+        public void AddTypeVertex(string type)
+        {
+            AddVertex("type", type);
+        }
+
+        public void AddModelVertex(string id)
+        {
+            AddVertex("id", id);
+        }
+
+        public void AddCnstVertex(string value, bool isString)
+        {
+            var source = NewTraversal(graph).AddV();
+            source = source.Property("value", value);
+            source = source.Property("isString", isString);
+            source.ToList();
+        }
+
+        // Find nodes with specific property and connect them as an edge with dst points to src.
+        public void AddEdge(string srcKey, object srcValue, string dstKey, object dstValue, string edgeType)
         {
             var source = NewTraversal(graph);
-            var traversal = source.V().Has("id", id).As("a");
+            var traversal = source.V().Has(srcKey, srcValue).As("a")
+                                  .V().Has(dstKey, dstValue)
+                                  .AddE(edgeType).To("a").ToList();
+        }
 
+        public void AddEdge(KeyValuePair<String, object> srcProp, KeyValuePair<String, object> dstProp, string edgeType)
+        {
+            AddEdge(srcProp.Key, srcProp.Value, dstProp.Key, dstProp.Value, edgeType);
+        }
+
+        // Connect Cnst to FuncTerm as argument.
+        public void connectCnstToFuncTerm(string id, object cnst, string edgeType)
+        {
             if (cnst.GetType() == typeof(String))
             {
-                traversal.V().Has("value", (String)cnst).AddE(edgeType).To("a").ToList();
+                AddEdge("id", id, "value", (String)cnst, edgeType);  
             }
             else if (cnst.GetType() == typeof(int))
             {
-                traversal.V().Has("value", (int)cnst).AddE(edgeType).To("a").ToList();
-            }           
+                AddEdge("id", id, "value", (int)cnst, edgeType);
+            }
         }
 
-        // Connect argument FuncTerm to parent FuncTerm.
-        public void AddEdgeToFuncTerm(string idx, string idy, string edgeType)
+        // Connect Cnst to its type node Integer or String.
+        public void connectCnstToType(string value, bool isString)
         {
-            var source = NewTraversal(graph);
-            var traversal = source.V().Has("id", idx).As("a")
-                  .V().Has("id", idy)
-                  .AddE(edgeType).To("a").ToList();
+            if (isString)
+            {
+                AddEdge("type", "String", "value", value, "type");
+            }
+            else
+            {
+                AddEdge("type", "Integer", "value", value, "type");
+            }
         }
 
-        public void AddVertexProperty(string id, KeyValuePair<string, object> prop)
+        // Connect argument FuncTerm to parent FuncTerm. (idy -> idx)
+        public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType)
         {
-            var source = NewTraversal(graph);
-            source.V().Has("id", id).Property(prop.Key, prop.Value).ToList();
+            AddEdge("id", idx, "id", idy, edgeType);
+        }
+
+        // Connect FuncTerm to type (id -> type)
+        public void connectFuncTermToType(string type, string id)
+        {
+            AddEdge("type", type, "id", id, "type");
         }
 
         public void Test1()
         {
-            var list = NewTraversal(graph).V().Has("type", "A").Values<String>("id").ToList();
+            var list = NewTraversal(graph).V().Has("type", "A").Values<String>("type").ToList();
 
             foreach (var item in list)
             {

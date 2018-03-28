@@ -20,9 +20,20 @@
         private static readonly char[] cmdSplitChars = new char[] { ' ' };
 
         public AST<Program> Program { get; }
+        
+        // Map Id of ModelFact to FuncTerm with original Id or auto-generated Id.
         public Dictionary<String, FuncTerm> IdMap { get; }
+
+        // Map Id of ModelFact to a list of ModelFact Id or Constants in arguments.
         public Dictionary<String, List<object>> FuncTermArgsMap { get; }
-        public Dictionary<String, String> FuncTermTypeMap { get; }
+
+        // Map type name to a list of type in arguments.
+        public Dictionary<String, List<String>> TypeArgsMap { get; } 
+
+        // A set of types defined in domain.
+        public HashSet<String> typeSet = new HashSet<string>();
+
+        // A set of Constants of either String or Integer type.
         private HashSet<object> cnstSet = new HashSet<object>();
 
         public GremlinTranslator(string inputFile)
@@ -31,7 +42,11 @@
 
             IdMap = new Dictionary<string, FuncTerm>();
             FuncTermArgsMap = new Dictionary<String, List<object>>();
-            FuncTermTypeMap = new Dictionary<String, String>();
+            TypeArgsMap = new Dictionary<string, List<string>>();
+            
+            // Add built-in types Integer and String type.
+            typeSet.Add("Integer");
+            typeSet.Add("String");
 
             Env env = new Env();
             InstallResult ires;
@@ -68,6 +83,31 @@
                     f.Item2.Message));
             }
 
+            Program.FindAll(new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Domain)},
+                (path, n) =>
+                {
+
+                }
+            );
+
+            // Find all ConDecl in Domain.        
+            Program.FindAll(
+                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.ConDecl)},
+                (path, n) =>
+                {
+                    ConDecl conDecl = n as ConDecl;
+                    typeSet.Add(conDecl.Name);
+                    List<String> argList = new List<string>();
+                    for (int i=0; i<conDecl.Children.Count(); i++)
+                    {
+                        Field field = (Field)conDecl.Children.ElementAt(i);
+                        string argType = ((Id)field.Type).Name;
+                        argList.Add(argType);
+                    }
+                    TypeArgsMap.Add(conDecl.Name, argList);
+                }
+            );
+
             // Find all ModelFact in Program.
             Program.FindAll(
                 new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.ModelFact) },
@@ -78,12 +118,12 @@
                     Id id = mf.Binding as Id;
                     string idName = (id == null)? "_AUTOID_" + ft.GetHashCode() : id.Name; 
                     IdMap.Add(idName, ft);
-                    FuncTermTypeMap.Add(idName, (ft.Function as Id).Name);
                     TraverseFuncTerm(idName, ft);
                 }
             );
         }
 
+        // Recursively find all FuncTerms inside FuncTerm.
         private void TraverseFuncTerm(string id, FuncTerm ft)
         {
             // Argument list only contains Ids of FuncTerm or Cnst (String or Numeric).
@@ -114,55 +154,20 @@
             FuncTermArgsMap.Add(id, args);
         }
 
-        public void TranslateQuery(GraphDBExecutor executor, string query)
-        {
-            var cmdLineName = new ProgramName("CommandLine.4ml");
-            var parse = Factory.Instance.ParseText(
-                cmdLineName,
-                string.Format("domain Dummy {{q :-\n{0}\n.}}", query));
-            parse.Wait();
-
-            //WriteFlags(cmdLineName, parse.Result.Flags);
-            if (!parse.Result.Succeeded)
-            {
-                Console.WriteLine("Failed to parse query.");
-                //sink.WriteMessageLine("Could not parse goal", SeverityKind.Warning);
-                return;
-            }
-
-            var rule = parse.Result.Program.FindAny(
-                new API.ASTQueries.NodePred[]
-                {
-                    API.ASTQueries.NodePredFactory.Instance.Star,
-                    API.ASTQueries.NodePredFactory.Instance.MkPredicate(NodeKind.Rule),
-                });
-
-            var bodies = ((Rule)rule.Node).Bodies;
-            var traversal = executor.NewTraversal().V();
-            foreach (Find find in bodies.ElementAt(0).Children)
-            {
-                FuncTerm ft = (FuncTerm)find.Match;
-                string typeName = ((Id)ft.Function).Name;
-                foreach (Id id in ft.Args)
-                {
-
-                }
-                
-                traversal.Match<Vertex>(
-                    __.As("a").Has("type", ((Id)ft.Function).Name)
-                );
-            }
-
-            
-            
-        }
-
         public void ExportToGraphDB(GraphDBExecutor executor)
         {
-            // Insert all FuncTerm as vertex in GraphDB, // Unique ID -> Type Name 
-            foreach (KeyValuePair<String, String> entry in FuncTermTypeMap)
+            // Insert all types as meta-level vertex in GraphDB.
+            foreach (string type in typeSet)
             {
-                executor.AddVertex(entry);
+                executor.AddTypeVertex(type);
+            }
+
+            // Insert all models(FuncTerm) to GraphDB and connect them to their type nodes.
+            foreach (KeyValuePair<String, FuncTerm> entry in IdMap)
+            {
+                executor.AddModelVertex(entry.Key);
+                string typeName = ((Id)entry.Value.Function).Name;
+                executor.connectFuncTermToType(typeName, entry.Key);
             }
 
             // Insert edge to denote the relation between FuncTerm and its arguments.
@@ -175,31 +180,105 @@
                     if (obj.GetType() == typeof(String))
                     {
                         string idy = (String)obj;
-                        executor.AddEdgeToFuncTerm(idx, idy, "ARG_" + i);
+                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i);
                     }
                     else if (obj.GetType() == typeof(Cnst))
                     {
-                        // Create node to store Const value.
-                        List<KeyValuePair<String, object>> list = new List<KeyValuePair<string, object>>();
-
-                        if (((Cnst)obj).CnstKind == CnstKind.Numeric && !cnstSet.Contains(((Cnst)obj).GetNumericValue()))
+                        // TODO: Distinguish integer and string as they are both converted to string from Rational type.
+                       
+                        // Create node to store Const value and connect Cnst node to Cnst type node.   
+                        string value = "";
+                        if (((Cnst)obj).CnstKind == CnstKind.Numeric && !cnstSet.Contains(((Cnst)obj).GetNumericValue().ToString()))
                         {
-                            list.Add(new KeyValuePair<string, object>("type", "Integer"));
-                            list.Add(new KeyValuePair<string, object>("value", ((Cnst)obj).GetNumericValue()));
-                            cnstSet.Add(((Cnst)obj).GetNumericValue());
+                            value = ((Cnst)obj).GetNumericValue().ToString();
+                            cnstSet.Add(value);
+                            executor.AddCnstVertex(value, false);
+                            executor.connectCnstToType(value, false);
                         }
                         else if (((Cnst)obj).CnstKind == CnstKind.String && !cnstSet.Contains(((Cnst)obj).GetStringValue()))
-                        {
-                            list.Add(new KeyValuePair<string, object>("type", "String"));
-                            list.Add(new KeyValuePair<string, object>("value", ((Cnst)obj).GetStringValue()));
-                            cnstSet.Add(((Cnst)obj).GetStringValue());
-                        }
-
-                        if(list.Count() > 0) executor.AddVertex(list);
-                        executor.AddEdgeToCnst(idx, obj, "ARG_" + i);
+                        {         
+                            value = ((Cnst)obj).GetStringValue();
+                            cnstSet.Add(value);
+                            executor.AddCnstVertex(value, true);
+                            executor.connectCnstToType(value, true);
+                        }                      
+                        executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
                     }
                 }
             }
+        }
+
+        public void TranslateQuery(GraphDBExecutor executor, string query)
+        {
+            var cmdLineName = new ProgramName("CommandLine.4ml");
+            var parse = Factory.Instance.ParseText(
+                cmdLineName,
+                string.Format("domain Dummy {{q :-\n{0}\n.}}", query));
+            parse.Wait();
+
+            // WriteFlags(cmdLineName, parse.Result.Flags);
+            if (!parse.Result.Succeeded)
+            {
+                Console.WriteLine("Failed to parse query.");
+                return;
+            }
+
+            var rule = parse.Result.Program.FindAny(
+                new API.ASTQueries.NodePred[]
+                {
+                    API.ASTQueries.NodePredFactory.Instance.Star,
+                    API.ASTQueries.NodePredFactory.Instance.MkPredicate(NodeKind.Rule),
+                });
+            
+            // Map label to a list of tuples (type, index), type is the name of Function.
+            Dictionary<String, List<Tuple<String, int>>> labelMap = new Dictionary<string, List<Tuple<string, int>>>();
+            var bodies = ((Rule)rule.Node).Bodies;
+            var traversal = executor.NewTraversal().V();
+
+            foreach (Find find in bodies.ElementAt(0).Children)
+            {
+                FuncTerm ft = (FuncTerm)find.Match;
+                string typeName = ((Id)ft.Function).Name;
+                for (int i = 0; i < ft.Args.Count(); i++)
+                {
+                    Id id = (Id)ft.Args.ElementAt(i);
+                    string label = id.Name;
+                    if (!labelMap.ContainsKey(label))
+                    {
+                        List<Tuple<String, int>> list = new List<Tuple<string, int>>();
+                        labelMap.Add(label, list);
+                    }
+                    List<Tuple<String, int>> tuples;
+                    labelMap.TryGetValue(label, out tuples);
+                    tuples.Add(new Tuple<String, int>(typeName, i));
+                }
+            }
+
+            List<GraphTraversal<object, Vertex>> subTraversals = new List<GraphTraversal<object, Vertex>>();
+            foreach (KeyValuePair<String, List<Tuple<String, int>>> entry in labelMap)
+            {
+                string label = entry.Key;
+                foreach (Tuple<String, int> tuple in entry.Value)
+                {
+                    string type = tuple.Item1;
+                    int index = tuple.Item2;
+                    List<String> argList;
+                    TypeArgsMap.TryGetValue(type, out argList);
+                    string argType = argList.ElementAt(index);
+
+                    var t1 = __.As(label).Out("type").Has("type", argType);
+                    var t2 = __.As(label).Out("ARG_" + index).As(label + "_" + index);
+                    var t3 = __.As(label + "_" + index).Out("type").Has("type", type);                
+                    subTraversals.Add(t1);
+                    subTraversals.Add(t2);
+                    subTraversals.Add(t3);
+                }
+            }
+
+            var steps = traversal.Match<Vertex>(subTraversals.ToArray()).Select<Vertex>("a");
+            var vertices = steps.ToList();
+
+            //Console.WriteLine(steps.Bytecode.StepInstructions);
         }
 
     }
