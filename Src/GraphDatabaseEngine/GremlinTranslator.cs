@@ -116,7 +116,7 @@
                     ModelFact mf = n as ModelFact;
                     FuncTerm ft = mf.Match as FuncTerm;
                     Id id = mf.Binding as Id;
-                    string idName = (id == null)? "_AUTOID_" + ft.GetHashCode() : id.Name; 
+                    string idName = (id == null)? "_AUTOID_" + ((Id)ft.Function).Name + ft.GetHashCode() : id.Name; 
                     IdMap.Add(idName, ft);
                     TraverseFuncTerm(idName, ft);
                 }
@@ -144,7 +144,8 @@
                 {
                     // Create Auto-generated Id for FuncTerm in arguments recursively.
                     FuncTerm term = (FuncTerm)ft.Args.ElementAt(i);
-                    string idName = "_AUTOID_" + term.GetHashCode();
+                    string type = ((Id)term.Function).Name;
+                    string idName = "_AUTOID_" + type + term.GetHashCode();
                     TraverseFuncTerm(idName, term);
                     args.Add(idName);
                     IdMap.Add(idName, term);
@@ -167,6 +168,7 @@
             {
                 executor.AddModelVertex(entry.Key);
                 string typeName = ((Id)entry.Value.Function).Name;
+                executor.AddProperty("id", entry.Key, "type", typeName);
                 executor.connectFuncTermToType(typeName, entry.Key);
             }
 
@@ -193,6 +195,7 @@
                             value = ((Cnst)obj).GetNumericValue().ToString();
                             cnstSet.Add(value);
                             executor.AddCnstVertex(value, false);
+                            executor.AddProperty("value", value, "type", "Integer");
                             executor.connectCnstToType(value, false);
                         }
                         else if (((Cnst)obj).CnstKind == CnstKind.String && !cnstSet.Contains(((Cnst)obj).GetStringValue()))
@@ -200,12 +203,48 @@
                             value = ((Cnst)obj).GetStringValue();
                             cnstSet.Add(value);
                             executor.AddCnstVertex(value, true);
+                            executor.AddProperty("value", value, "type", "String");
                             executor.connectCnstToType(value, true);
                         }                      
                         executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
                     }
                 }
             }
+        }
+
+        // TODO: Recursively find all connected labels.
+        // Return a list of labels that are all strongly connected.
+        public HashSet<String> FindSCCLabels(string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
+        {
+            HashSet<String> labels = new HashSet<string>();
+            labels.Add(label);
+            if (!labelMap.ContainsKey(label)) return labels;
+
+            List<Tuple<string, int, int>> srcTuples;
+            labelMap.TryGetValue(label, out srcTuples);
+
+            // srcTuples represents all occurance of target label.
+            foreach (var srcTuple in srcTuples)
+            {
+                string typeName = srcTuple.Item1;
+                int count = srcTuple.Item3;
+
+                // Traverse all labels to find matches for target label.
+                foreach (var dstLabel in labelMap.Keys)
+                {
+                    List<Tuple<string, int, int>> dstTuples;
+                    labelMap.TryGetValue(dstLabel, out dstTuples);
+                    foreach (var dstTuple in dstTuples)
+                    {
+                        if (dstTuple.Item1 == typeName && dstTuple.Item3 == count)
+                        {
+                            labels.Add(dstLabel);
+                        }
+                    }
+                }
+            }
+
+            return labels;
         }
 
         public void TranslateQuery(GraphDBExecutor executor, string query)
@@ -230,53 +269,100 @@
                     API.ASTQueries.NodePredFactory.Instance.MkPredicate(NodeKind.Rule),
                 });
             
-            // Map label to a list of tuples (type, index), type is the name of Function.
-            Dictionary<String, List<Tuple<String, int>>> labelMap = new Dictionary<string, List<Tuple<string, int>>>();
+            // Map label to a list of tuples (type, index, count), type is the name of Function.
+            Dictionary<String, List<Tuple<String, int, int>>> labelMap = new Dictionary<string, List<Tuple<string, int, int>>>();
+            Dictionary<String, int> typeCounts = new Dictionary<string, int>();
+
             var bodies = ((Rule)rule.Node).Bodies;
-            var traversal = executor.NewTraversal().V();
 
             foreach (Find find in bodies.ElementAt(0).Children)
             {
                 FuncTerm ft = (FuncTerm)find.Match;
                 string typeName = ((Id)ft.Function).Name;
+                
+                // Count the occurance of same type name in query.
+                if (!typeCounts.ContainsKey(typeName))
+                {
+                    typeCounts.Add(typeName, 0);
+                }
+                else
+                {
+                    int oldCount;
+                    typeCounts.TryGetValue(typeName, out oldCount);
+                    typeCounts[typeName] = oldCount + 1;
+                }
+
+                int currentCount;
+                typeCounts.TryGetValue(typeName, out currentCount);
+
                 for (int i = 0; i < ft.Args.Count(); i++)
                 {
                     Id id = (Id)ft.Args.ElementAt(i);
                     string label = id.Name;
                     if (!labelMap.ContainsKey(label))
                     {
-                        List<Tuple<String, int>> list = new List<Tuple<string, int>>();
+                        List<Tuple<String, int, int>> list = new List<Tuple<string, int, int>>();
                         labelMap.Add(label, list);
                     }
-                    List<Tuple<String, int>> tuples;
+                    List<Tuple<String, int, int>> tuples;
                     labelMap.TryGetValue(label, out tuples);
-                    tuples.Add(new Tuple<String, int>(typeName, i));
+                    tuples.Add(new Tuple<String, int, int>(typeName, i, currentCount));
                 }
             }
 
-            List<GraphTraversal<object, Vertex>> subTraversals = new List<GraphTraversal<object, Vertex>>();
-            foreach (KeyValuePair<String, List<Tuple<String, int>>> entry in labelMap)
+            //foreach (KeyValuePair<String, List<Tuple<String, int, int>>> entry in labelMap)
+            foreach(var label in labelMap.Keys)
             {
-                string label = entry.Key;
-                foreach (Tuple<String, int> tuple in entry.Value)
+                var traversal = executor.NewTraversal().V();
+                List<GraphTraversal<object, Vertex>> subTraversals = new List<GraphTraversal<object, Vertex>>();
+                var relatedLabels = FindSCCLabels(label, labelMap);
+
+                foreach (string relatedLabel in relatedLabels)
                 {
-                    string type = tuple.Item1;
-                    int index = tuple.Item2;
-                    List<String> argList;
-                    TypeArgsMap.TryGetValue(type, out argList);
-                    string argType = argList.ElementAt(index);
+                    List<Tuple<String, int, int>> tuples;
+                    labelMap.TryGetValue(relatedLabel, out tuples);
 
-                    var t1 = __.As(label).Out("type").Has("type", argType);
-                    var t2 = __.As(label).Out("ARG_" + index).As(label + "_" + index);
-                    var t3 = __.As(label + "_" + index).Out("type").Has("type", type);                
-                    subTraversals.Add(t1);
-                    subTraversals.Add(t2);
-                    subTraversals.Add(t3);
+                    foreach (Tuple<String, int, int> tuple in tuples)
+                    {
+                        string type = tuple.Item1;
+                        int index = tuple.Item2;
+                        int count = tuple.Item3;
+                        List<String> argList;
+                        TypeArgsMap.TryGetValue(type, out argList);
+                        string argType = argList.ElementAt(index);
+  
+                        var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(count + "_instance_of_" + type);
+                        var t2 = __.As(count + "_instance_of_" + type).Has("type", type).In("ARG_" + index).As(relatedLabel);
+
+                        // Print out the Gremlin query for debugging.
+                        Console.WriteLine("__.As(\"" + relatedLabel + "\").Out(\"ARG_" + index + "\").Has(\"type\", \"" + type + "\").As(\"" + count + "_instance_of_" + type + "\"),");
+                        Console.WriteLine("__.As(\"" + count + "_instance_of_" + type + "\").Has(\"type\", \"" + type + "\").In(\"ARG_" + index + "\").As(\"" + relatedLabel + "\"),");
+
+                        subTraversals.Add(t1);
+                        subTraversals.Add(t2);
+                    }
                 }
-            }
 
-            var steps = traversal.Match<Vertex>(subTraversals.ToArray()).Select<Vertex>("a");
-            var vertices = steps.ToList();
+                // TODO: Find the type of the label. Check if it is basic built-in type or other types.
+                string propName;
+                string labelType = "value";
+                
+                if (labelType == "Integer" || labelType == "String")
+                {
+                    propName = "value";
+                }
+                else
+                {
+                    propName = "id";
+                }
+
+                var vertices = traversal.Match<Vertex>(subTraversals.ToArray()).Select<Vertex>(label).Values<String>(propName).ToList();
+                foreach (string vid in vertices)
+                {
+                    Console.WriteLine(vid);
+                }
+                Console.WriteLine();
+            }      
 
             //Console.WriteLine(steps.Bytecode.StepInstructions);
         }

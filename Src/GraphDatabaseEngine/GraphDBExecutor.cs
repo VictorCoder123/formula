@@ -53,9 +53,14 @@
             source.ToList();
         }
 
+        public void AddProperty(string key, string value, string propKey, string propValue)
+        {
+            var source = NewTraversal(graph).V().Has(key, value).Property(propKey, propValue).ToList();
+        }
+
         public void AddTypeVertex(string type)
         {
-            AddVertex("type", type);
+            AddVertex("meta", type);
         }
 
         public void AddModelVertex(string id)
@@ -103,11 +108,11 @@
         {
             if (isString)
             {
-                AddEdge("type", "String", "value", value, "type");
+                AddEdge("meta", "String", "value", value, "type");
             }
             else
             {
-                AddEdge("type", "Integer", "value", value, "type");
+                AddEdge("meta", "Integer", "value", value, "type");
             }
         }
 
@@ -120,12 +125,18 @@
         // Connect FuncTerm to type (id -> type)
         public void connectFuncTermToType(string type, string id)
         {
-            AddEdge("type", type, "id", id, "type");
+            AddEdge("meta", type, "id", id, "type");
         }
 
         public void Test1()
         {
-            var list = NewTraversal(graph).V().Has("type", "A").Values<String>("type").ToList();
+            // Query: A(hi), F(a, b), H(a, a)
+            var list = NewTraversal(graph).V()
+                      .Match<Vertex>(
+                          __.As("x").Has("meta", "A")
+                         
+                      )
+                      .Select<Vertex>("x").Values<string>("meta").ToList();
 
             foreach (var item in list)
             {
@@ -138,18 +149,48 @@
             // Query: A(hi), F(a, b), H(a, a)
             var list = NewTraversal(graph).V()
                       .Match<Vertex>(
-                          __.As("a").Out("type").Has("type", "A"),
-                          __.As("a").Out("ARG_" + 0).Out("type").Has("type", "F"),
-                          __.As("a").Out("type").Has("type", "A"),
-                          __.As("a").Out("ARG_" + 0).Out("type").Has("type", "H"),
-                          __.As("a").Out("type").Has("type", "A"),
-                          __.As("a").Out("ARG_" + 1).Out("type").Has("type", "H"),
-                          __.As("b").Out("type").Has("type", "B"),
-                          __.As("b").Out("ARG_" + 1).Out("type").Has("type", "F"),
-                          __.As("hi").Out("type").Has("type", "Integer"),
-                          __.As("hi").Out("ARG_" + 0).Out("type").Has("type", "A")
+                          //__.As("f").Out("type").Has("meta", "F"),
+                          //__.As("h").Out("type").Has("meta", "H"),
+                          //__.As("a").Out("type").Has("meta", "A"),
+                          //__.As("b").Out("type").Has("meta", "B"),
+
+                          //__.As("hi").Out("type").Has("meta", "Integer"),
+                          //__.As("newa").Out("type").Has("meta", "A"),
+
+
+                          __.As("a").Out("ARG_" + 0).Has("type", "F").As("0_i_F"), // F
+                          __.As("0_i_F").Has("type", "F").In("ARG_" + 0).As("a"),
+
+                          __.As("a").Out("ARG_" + 0).Has("type", "H").As("0_i_H"), // H
+                          __.As("0_i_H").Has("type", "H").In("ARG_" + 0).As("a"),
+
+                          __.As("a").Out("ARG_" + 1).Has("type", "H").As("0_i_H"), // H
+                          __.As("0_i_H").Has("type", "H").In("ARG_" + 1).As("a"),
+
+                          __.As("b").Out("ARG_" + 1).Has("type", "F").As("0_i_F"),  // F
+                          __.As("0_i_F").Has("type", "F").In("ARG_" + 1).As("b")
+                          
+                          //__.As("hi").Out("ARG_" + 0).Has("type", "A").As("newa"),
+                          //__.As("newa").Has("type", "A").In("ARG_" + 0).As("hi")
+
                       )
-                      .Select<Vertex>("a").Values<string>("id").ToList();
+                      .Select<Vertex>("a").Values<String>("id").ToList();
+
+            foreach (var item in list)
+            {
+                Console.WriteLine(item);
+            }
+        }
+
+        public void Test3()
+        {
+            // Query: q :- A(x).
+            var list = NewTraversal(graph).V()
+                      .Match<Vertex>(
+                          __.As("x").Out("type").Has("type", "Integer"),
+                          __.As("x").Out("ARG_" + 0).Out("type").Has("type", "A")
+                      )
+                      .Select<Vertex>("x").Values<string>("value").ToList();
 
             foreach (var item in list)
             {
