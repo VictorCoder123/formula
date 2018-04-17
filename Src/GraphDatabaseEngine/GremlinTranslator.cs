@@ -212,13 +212,18 @@
             }
         }
 
-        // TODO: Recursively find all connected labels.
-        // Return a list of labels that are all strongly connected.
+        // Overload and return a list of labels that are all strongly connected.
         public HashSet<String> FindSCCLabels(string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
         {
-            HashSet<String> labels = new HashSet<string>();
+            HashSet<String> relatedLabels = new HashSet<string>();
+            FindSCCLabels(relatedLabels, label, labelMap);
+            return relatedLabels;
+        }
+
+        // Recursively return a list of labels that are all strongly connected.
+        public HashSet<String> FindSCCLabels(HashSet<String> labels, string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
+        { 
             labels.Add(label);
-            if (!labelMap.ContainsKey(label)) return labels;
 
             List<Tuple<string, int, int>> srcTuples;
             labelMap.TryGetValue(label, out srcTuples);
@@ -232,13 +237,17 @@
                 // Traverse all labels to find matches for target label.
                 foreach (var dstLabel in labelMap.Keys)
                 {
-                    List<Tuple<string, int, int>> dstTuples;
-                    labelMap.TryGetValue(dstLabel, out dstTuples);
-                    foreach (var dstTuple in dstTuples)
+                    if (!labels.Contains(dstLabel))
                     {
-                        if (dstTuple.Item1 == typeName && dstTuple.Item3 == count)
+                        List<Tuple<string, int, int>> dstTuples;
+                        labelMap.TryGetValue(dstLabel, out dstTuples);
+                        foreach (var dstTuple in dstTuples)
                         {
-                            labels.Add(dstLabel);
+                            if (dstTuple.Item1 == typeName && dstTuple.Item3 == count)
+                            {
+                                labels.Add(dstLabel);
+                                FindSCCLabels(labels, dstLabel, labelMap);
+                            }
                         }
                     }
                 }
@@ -269,7 +278,7 @@
                     API.ASTQueries.NodePredFactory.Instance.MkPredicate(NodeKind.Rule),
                 });
             
-            // Map label to a list of tuples (type, index, count), type is the name of Function.
+            // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
             Dictionary<String, List<Tuple<String, int, int>>> labelMap = new Dictionary<string, List<Tuple<string, int, int>>>();
             Dictionary<String, int> typeCounts = new Dictionary<string, int>();
 
@@ -314,8 +323,10 @@
             foreach(var label in labelMap.Keys)
             {
                 var traversal = executor.NewTraversal().V();
-                List<GraphTraversal<object, Vertex>> subTraversals = new List<GraphTraversal<object, Vertex>>();
+                List<ITraversal> subTraversals = new List<ITraversal>();
+                // Items in list are GraphTraversal<object, object> type.
                 var relatedLabels = FindSCCLabels(label, labelMap);
+                HashSet<String> labelSet = new HashSet<string>();
 
                 foreach (string relatedLabel in relatedLabels)
                 {
@@ -334,6 +345,11 @@
                         var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(count + "_instance_of_" + type);
                         var t2 = __.As(count + "_instance_of_" + type).Has("type", type).In("ARG_" + index).As(relatedLabel);
 
+                        if (!labelSet.Contains(count + "_instance_of_" + type))
+                        {
+                            labelSet.Add(count + "_instance_of_" + type);
+                        }
+
                         // Print out the Gremlin query for debugging.
                         Console.WriteLine("__.As(\"" + relatedLabel + "\").Out(\"ARG_" + index + "\").Has(\"type\", \"" + type + "\").As(\"" + count + "_instance_of_" + type + "\"),");
                         Console.WriteLine("__.As(\"" + count + "_instance_of_" + type + "\").Has(\"type\", \"" + type + "\").In(\"ARG_" + index + "\").As(\"" + relatedLabel + "\"),");
@@ -343,10 +359,29 @@
                     }
                 }
 
-                // TODO: Find the type of the label. Check if it is basic built-in type or other types.
+                // Make sure some intermediate labels of same type are not identical.
+                List<string> diffLabels = labelSet.ToList();
+                for (int i = 0; i < diffLabels.Count(); i++)
+                {
+                    string difflabel = diffLabels[i];
+                    for (int j=i+1; j<diffLabels.Count(); j++)
+                    {
+                        string difflabel2 = diffLabels[j];
+                        var t = __.Where(difflabel, P.Neq(difflabel2));
+                        subTraversals.Add(t);
+                    }
+                }
+
+                // Find the type of the label. Check if it is basic built-in type or other types.
                 string propName;
-                string labelType = "value";
-                
+                List<Tuple<string, int, int>> tupleList;
+                labelMap.TryGetValue(label, out tupleList);
+                string labelFuncType = tupleList[0].Item1;
+                int labelIndex = tupleList[0].Item2;
+                List<String> argTypeList;
+                TypeArgsMap.TryGetValue(labelFuncType, out argTypeList);
+                string labelType = argTypeList[labelIndex];
+
                 if (labelType == "Integer" || labelType == "String")
                 {
                     propName = "value";
@@ -361,6 +396,7 @@
                 {
                     Console.WriteLine(vid);
                 }
+
                 Console.WriteLine();
             }      
 

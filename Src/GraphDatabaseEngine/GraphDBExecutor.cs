@@ -187,10 +187,16 @@
             // Query: q :- A(x).
             var list = NewTraversal(graph).V()
                       .Match<Vertex>(
-                          __.As("x").Out("type").Has("type", "Integer"),
-                          __.As("x").Out("ARG_" + 0).Out("type").Has("type", "A")
+                        __.As("a").Out("ARG_0").Has("type", "H").As("x"),
+                        __.As("x").Has("type", "H").In("ARG_0").As("a"),
+                        __.As("b").Out("ARG_1").Has("type", "H").As("x"),
+                        __.As("x").Has("type", "H").In("ARG_1").As("b"),
+                        __.As("b").Out("ARG_0").Has("type", "H").As("y"),
+                        __.As("y").Has("type", "H").In("ARG_0").As("b"),
+                        //__.Dedup("x", "y")
+                        __.Where("x", P.Neq("y"))
                       )
-                      .Select<Vertex>("x").Values<string>("value").ToList();
+                      .Select<Vertex>("a").Values<string>("id").ToList();
 
             foreach (var item in list)
             {
