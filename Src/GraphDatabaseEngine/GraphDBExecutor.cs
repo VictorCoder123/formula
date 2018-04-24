@@ -204,5 +204,34 @@
             }
         }
 
+        public void Test4()
+        {
+            //var list = NewTraversal(graph).V().Has("type", "D").Values<string>("id").ToList();
+            var list = NewTraversal(graph).V()
+                      .Match<Vertex>(
+                        __.As("a").Out("ARG_0").Has("type", "D").As("0_instance_of_D"),
+                        __.As("0_instance_of_D").Has("type", "D").In("ARG_0").As("a")
+                        //__.As("b").Out("ARG_1").Has("type", "D").As("0_instance_of_D"),
+                        //__.As("0_instance_of_D").Has("type", "D").In("ARG_1").As("b")
+                      )
+                      .Select<Vertex>("a").Values<string>("value").ToList();
+
+
+            foreach (var item in list)
+            {
+                Console.WriteLine(item);
+            }
+        }
+
+        public void Test5()
+        {
+            var list = NewTraversal(graph).V().Has("value", "4").Values<string>("value").ToList();
+
+            foreach (var item in list)
+            {
+                Console.WriteLine(item);
+            }
+        }
+
     }
 }

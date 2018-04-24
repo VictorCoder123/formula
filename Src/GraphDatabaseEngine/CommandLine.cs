@@ -18,8 +18,17 @@
             GremlinTranslator translator = new GremlinTranslator("test.4ml");
             translator.ExportToGraphDB(executor);
             //executor.Test2();
-            translator.TranslateQuery(executor, "A(hi), F(a, b), H(a, a)");
-            //translator.TranslateQuery(executor, "H(a, b), H(b, c)");
+            //executor.Test3();
+            //executor.Test4();
+            //translator.TranslateQuery(executor, "A(hi), F(a, b), H(a, a)");
+            //translator.TranslateQuery(executor, "H(a, b), H(b, c), H(c, d)");
+            //string query = "H(a, b), H(b, c), count({s|s is A(x)}) > 1";
+            //string query = "H(a, b), H(b, c), H(c, d)";
+            string query = "D(a, b)";
+            Body body = translator.ParseQueryString(query);
+            //translator.TranslateQuery(executor, body, new List<string> {"a"});
+            //translator.GetQueryResult(executor, body, new List<string> {"a", "b", "c" });
+            translator.GetQueryResult(executor, body, new List<string> { "a", "b" });
 
             string line = Console.ReadLine();
         }

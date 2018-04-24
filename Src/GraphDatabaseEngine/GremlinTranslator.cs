@@ -8,6 +8,7 @@
     using Microsoft.Formula.API;
     using Microsoft.Formula.API.ASTQueries;
     using Microsoft.Formula.API.Nodes;
+    using Microsoft.Formula.Common;
     using Microsoft.Formula.API.Generators;
 
     using Gremlin.Net.Structure;
@@ -22,10 +23,10 @@
         public AST<Program> Program { get; }
         
         // Map Id of ModelFact to FuncTerm with original Id or auto-generated Id.
-        public Dictionary<String, FuncTerm> IdMap { get; }
+        public Dictionary<String, String> IdTypeMap { get; }
 
         // Map Id of ModelFact to a list of ModelFact Id or Constants in arguments.
-        public Dictionary<String, List<object>> FuncTermArgsMap { get; }
+        public Dictionary<String, List<string>> FuncTermArgsMap { get; }
 
         // Map type name to a list of type in arguments.
         public Dictionary<String, List<String>> TypeArgsMap { get; } 
@@ -37,11 +38,9 @@
         private HashSet<object> cnstSet = new HashSet<object>();
 
         public GremlinTranslator(string inputFile)
-        {
-            //GraphDBExecutor executor = new GraphDBExecutor("localhost", 8182);
-
-            IdMap = new Dictionary<string, FuncTerm>();
-            FuncTermArgsMap = new Dictionary<String, List<object>>();
+        {          
+            IdTypeMap = new Dictionary<string, string>();
+            FuncTermArgsMap = new Dictionary<String, List<string>>();
             TypeArgsMap = new Dictionary<string, List<string>>();
             
             // Add built-in types Integer and String type.
@@ -83,13 +82,6 @@
                     f.Item2.Message));
             }
 
-            Program.FindAll(new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Domain)},
-                (path, n) =>
-                {
-
-                }
-            );
-
             // Find all ConDecl in Domain.        
             Program.FindAll(
                 new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.ConDecl)},
@@ -117,23 +109,31 @@
                     FuncTerm ft = mf.Match as FuncTerm;
                     Id id = mf.Binding as Id;
                     string idName = (id == null)? "_AUTOID_" + ((Id)ft.Function).Name + ft.GetHashCode() : id.Name; 
-                    IdMap.Add(idName, ft);
+                    IdTypeMap.Add(idName, (ft.Function as Id).Name);
                     TraverseFuncTerm(idName, ft);
                 }
             );
         }
 
-        // Recursively find all FuncTerms inside FuncTerm.
+        // TODO: Recursively check if the FuncTerm already exists.
+        // Recursively find all FuncTerms inside FuncTerm and convert all values to string without any type information.
         private void TraverseFuncTerm(string id, FuncTerm ft)
         {
-            // Argument list only contains Ids of FuncTerm or Cnst (String or Numeric).
-            List<object> args = new List<object>(); 
+            // Argument list only contains Ids of FuncTerm or converted string of Cnst (String or Numeric).
+            List<string> args = new List<string>(); 
             for (int i = 0; i < ft.Args.Count(); i++)
             {
                 if (ft.Args.ElementAt(i).NodeKind == NodeKind.Cnst)
                 {
                     Cnst cnst = (Cnst)ft.Args.ElementAt(i);
-                    args.Add(cnst);
+                    if (cnst.CnstKind == CnstKind.Numeric)
+                    {
+                        args.Add(cnst.GetNumericValue().ToString());
+                    }
+                    else if(cnst.CnstKind == CnstKind.String)
+                    {
+                        args.Add(cnst.GetStringValue());
+                    }
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.Id)
                 {
@@ -148,15 +148,157 @@
                     string idName = "_AUTOID_" + type + term.GetHashCode();
                     TraverseFuncTerm(idName, term);
                     args.Add(idName);
-                    IdMap.Add(idName, term);
+                    IdTypeMap.Add(idName, (term.Function as Id).Name);
                 }
             }
 
             FuncTermArgsMap.Add(id, args);
         }
 
-        public void ExportToGraphDB(GraphDBExecutor executor)
+        // Merge all results from disjoint groups together
+        public List<Dictionary<string, string>> MergeResultGroups(List<List<Dictionary<string, string>>> resultGroups)
         {
+            List<Dictionary<string, string>> finalResult = new List<Dictionary<string, string>>();
+            foreach (List<Dictionary<string, string>> result in resultGroups)
+            {
+                if (finalResult.Count() == 0)
+                {
+                    finalResult = result;
+                }
+                else
+                {
+                    List<Dictionary<string, string>> newfinalResult = new List<Dictionary<string, string>>();
+                    foreach (var dict1 in finalResult)
+                    {
+                        foreach (var dict2 in result)
+                        {
+                            var dict = dict1.Concat(dict2).ToDictionary(x => x.Key, x => x.Value); ;
+                            newfinalResult.Add(dict);
+                        }
+                    }
+                    finalResult = newfinalResult;
+                }
+            }
+            return finalResult;
+        }
+
+        // Infer the type of label in FORMULA rule from label map.
+        public string GetLabelType(string label, Dictionary<String, List<Tuple<String, int, int>>> labelMap)
+        {
+            // Find the type of the label. Check if it is basic built-in type or other types.
+            List<Tuple<string, int, int>> tupleList;
+            labelMap.TryGetValue(label, out tupleList);
+            string labelFuncType = tupleList[0].Item1;
+            int labelIndex = tupleList[0].Item2;
+            List<String> argTypeList;
+            TypeArgsMap.TryGetValue(labelFuncType, out argTypeList);
+            string labelType = argTypeList[labelIndex];
+            return labelType;
+        }
+
+        public int GetLabelIndex(string label, Dictionary<String, List<Tuple<String, int, int>>> labelMap)
+        {
+            // Find the type of the label. Check if it is basic built-in type or other types.
+            List<Tuple<string, int, int>> tupleList;
+            labelMap.TryGetValue(label, out tupleList);
+            string labelFuncType = tupleList[0].Item1;
+            int labelIndex = tupleList[0].Item2;
+            return labelIndex;
+        }
+
+        // Get the type of argument corresponding to unique Id given Id and index.
+        public string GetArgType(string id, int index)
+        {
+            string idType;
+            IdTypeMap.TryGetValue(id, out idType);
+            List<string> argTypes;
+            TypeArgsMap.TryGetValue(idType, out argTypes);
+            return argTypes[index];
+        }
+
+        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, Dictionary<String, 
+            List<Tuple<String, int, int>>> labelMap, string funcName, List<Dictionary<string, string>> finalResult)
+        {
+            // Update new generated models into FuncTermArgsMap and IdTypeMap mappings
+            foreach (Dictionary<string, string> dict in finalResult)
+            {
+                string idName = "_AUTOID_" + funcName + dict.GetHashCode();
+                IdTypeMap.Add(idName, funcName);
+
+                // Add a new model fact with unique ID.
+                executor.AddModelVertex(idName);
+                string typeName = funcName;
+                executor.AddProperty("id", idName, "type", typeName);
+                executor.connectFuncTermToType(typeName, idName);
+
+                List<string> args = new List<string>();
+                for (int i = 0; i < labels.Count(); i++)
+                {
+                    string label = labels[i];
+                    string labelType = GetLabelType(label, labelMap);
+                    if (labelType == "Integer")
+                    {
+                        string integerString = dict[label];
+                        args.Add(integerString);
+                        executor.connectCnstToFuncTerm(idName, integerString, "ARG_" + i);
+                    }
+                    else if (labelType == "String")
+                    {
+                        string s = dict[label];
+                        args.Add(s);
+                        executor.connectCnstToFuncTerm(idName, s, "ARG_" + i);
+                    }
+                    else
+                    {
+                        string idy = dict[label];
+                        args.Add(idy);
+                        executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i);
+                    }
+                }                
+                FuncTermArgsMap.Add(idName, args);
+            }           
+        }
+
+        // Execute domain rules in sequence and add new generated model facts into database.
+        public void ExecuteDomainRules(GraphDBExecutor executor)
+        {
+            // Execute rules defined in the domain to add more model facts into database.
+            Program.FindAll(
+                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Rule) },
+                (path, n) =>
+                {
+                    Rule r = n as Rule;
+                    Body body = r.Bodies.ElementAt(0);
+                    var labelMap = CreateLabelMap(body);
+                    var allLabels = labelMap.Keys.ToList();
+                    List<HashSet<string>> groups = GetSCCGroups(allLabels, labelMap);
+                    List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
+
+                    foreach (HashSet<string> group in groups)
+                    {
+                        List<Dictionary<string, string>> result = GetQueryResult(executor, body, group.ToList());
+                        resultGroups.Add(result);
+                    }
+
+                    List<Dictionary<string, string>> finalResult = MergeResultGroups(resultGroups);
+
+                    foreach (FuncTerm ft in r.Heads)
+                    {
+                        string funcName = (ft.Function as Id).Name;
+                        List<string> labels = new List<string>();
+                        foreach (var node in ft.Args)
+                        {
+                            Id id = node as Id;
+                            labels.Add(id.Name);
+                        }
+                        AddNonRecursiveModel(executor, labels, labelMap, funcName, finalResult);
+                    }
+                }
+            );
+        }
+
+        public void ExportToGraphDB(GraphDBExecutor executor)
+        {          
             // Insert all types as meta-level vertex in GraphDB.
             foreach (string type in typeSet)
             {
@@ -164,55 +306,59 @@
             }
 
             // Insert all models(FuncTerm) to GraphDB and connect them to their type nodes.
-            foreach (KeyValuePair<String, FuncTerm> entry in IdMap)
+            foreach (KeyValuePair<String, String> entry in IdTypeMap)
             {
                 executor.AddModelVertex(entry.Key);
-                string typeName = ((Id)entry.Value.Function).Name;
+                string typeName = entry.Value;
                 executor.AddProperty("id", entry.Key, "type", typeName);
                 executor.connectFuncTermToType(typeName, entry.Key);
             }
 
             // Insert edge to denote the relation between FuncTerm and its arguments.
-            foreach (KeyValuePair<String, List<object>> entry in FuncTermArgsMap)
+            foreach (KeyValuePair<String, List<string>> entry in FuncTermArgsMap)
             {
                 string idx = entry.Key;
                 for (int i = 0; i < entry.Value.Count(); i++)
                 {
-                    object obj = entry.Value.ElementAt(i);
-                    if (obj.GetType() == typeof(String))
+                    string obj = entry.Value[i];
+                    string argType = GetArgType(idx, i);
+                    if (argType == "Integer")
                     {
-                        string idy = (String)obj;
-                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i);
-                    }
-                    else if (obj.GetType() == typeof(Cnst))
-                    {
-                        // TODO: Distinguish integer and string as they are both converted to string from Rational type.
-                       
-                        // Create node to store Const value and connect Cnst node to Cnst type node.   
-                        string value = "";
-                        if (((Cnst)obj).CnstKind == CnstKind.Numeric && !cnstSet.Contains(((Cnst)obj).GetNumericValue().ToString()))
+                        string value = obj;
+                        if (!cnstSet.Contains(value))
                         {
-                            value = ((Cnst)obj).GetNumericValue().ToString();
                             cnstSet.Add(value);
                             executor.AddCnstVertex(value, false);
                             executor.AddProperty("value", value, "type", "Integer");
                             executor.connectCnstToType(value, false);
                         }
-                        else if (((Cnst)obj).CnstKind == CnstKind.String && !cnstSet.Contains(((Cnst)obj).GetStringValue()))
-                        {         
-                            value = ((Cnst)obj).GetStringValue();
+                        executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
+                    }
+                    else if (argType == "String")
+                    {
+                        string value = obj;
+                        if (!cnstSet.Contains(value))
+                        {
                             cnstSet.Add(value);
                             executor.AddCnstVertex(value, true);
                             executor.AddProperty("value", value, "type", "String");
                             executor.connectCnstToType(value, true);
-                        }                      
+                        }
                         executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
+                    }
+                    else
+                    {
+                        string idy = obj;
+                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i);
                     }
                 }
             }
+
+            // Execute rules defined in domain in sequence.
+            ExecuteDomainRules(executor);
         }
 
-        // Overload and return a list of labels that are all strongly connected.
+        // Overload and return a list of labels that are all strongly connected to a given label including itself.
         public HashSet<String> FindSCCLabels(string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
         {
             HashSet<String> relatedLabels = new HashSet<string>();
@@ -256,7 +402,27 @@
             return labels;
         }
 
-        public void TranslateQuery(GraphDBExecutor executor, string query)
+        public List<HashSet<string>> GetSCCGroups(List<string> labels, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
+        {
+            List<HashSet<string>> list = new List<HashSet<string>>();
+            foreach (string label in labels)
+            {
+                bool exists = false;
+                // Check if current label exists in one of the hashset.
+                foreach (HashSet<string> set in list)
+                {
+                    if (set.Contains(label)) exists = true;
+                }
+                if (!exists)
+                {
+                    HashSet<string> scc = FindSCCLabels(label, labelMap);
+                    list.Add(scc);
+                }
+            }
+            return list;
+        }
+
+        public Body ParseQueryString(string query)
         {
             var cmdLineName = new ProgramName("CommandLine.4ml");
             var parse = Factory.Instance.ParseText(
@@ -268,7 +434,7 @@
             if (!parse.Result.Succeeded)
             {
                 Console.WriteLine("Failed to parse query.");
-                return;
+                return null;
             }
 
             var rule = parse.Result.Program.FindAny(
@@ -277,18 +443,23 @@
                     API.ASTQueries.NodePredFactory.Instance.Star,
                     API.ASTQueries.NodePredFactory.Instance.MkPredicate(NodeKind.Rule),
                 });
-            
-            // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
+
+            var bodies = ((Rule)rule.Node).Bodies;
+            var body = bodies.ElementAt(0);
+            return body;
+        }
+
+        // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
+        public Dictionary<String, List<Tuple<String, int, int>>> CreateLabelMap(Body body)
+        {
             Dictionary<String, List<Tuple<String, int, int>>> labelMap = new Dictionary<string, List<Tuple<string, int, int>>>();
             Dictionary<String, int> typeCounts = new Dictionary<string, int>();
 
-            var bodies = ((Rule)rule.Node).Bodies;
-
-            foreach (Find find in bodies.ElementAt(0).Children)
+            foreach (Find find in body.Children)
             {
                 FuncTerm ft = (FuncTerm)find.Match;
                 string typeName = ((Id)ft.Function).Name;
-                
+
                 // Count the occurance of same type name in query.
                 if (!typeCounts.ContainsKey(typeName))
                 {
@@ -319,63 +490,76 @@
                 }
             }
 
-            //foreach (KeyValuePair<String, List<Tuple<String, int, int>>> entry in labelMap)
-            foreach(var label in labelMap.Keys)
+            return labelMap;
+        }
+
+        // outputLabels must be all related without disjoint labels.
+        public List<Dictionary<string, string>> GetQueryResult(GraphDBExecutor executor, Body body, List<string> outputLabels)
+        {
+            // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
+            Dictionary<String, List<Tuple<String, int, int>>> labelMap = CreateLabelMap(body);
+
+            // Take the first label and the rest should be included in relatedLabels.
+            string firstLabel = outputLabels[0];
+            var traversal = executor.NewTraversal().V();
+            List<ITraversal> subTraversals = new List<ITraversal>();
+
+            // Items in list are GraphTraversal<object, object> type.
+            var relatedLabels = FindSCCLabels(firstLabel, labelMap);
+            HashSet<String> labelSet = new HashSet<string>();
+
+            foreach (string relatedLabel in relatedLabels)
             {
-                var traversal = executor.NewTraversal().V();
-                List<ITraversal> subTraversals = new List<ITraversal>();
-                // Items in list are GraphTraversal<object, object> type.
-                var relatedLabels = FindSCCLabels(label, labelMap);
-                HashSet<String> labelSet = new HashSet<string>();
+                List<Tuple<String, int, int>> tuples;
+                labelMap.TryGetValue(relatedLabel, out tuples);
 
-                foreach (string relatedLabel in relatedLabels)
+                foreach (Tuple<String, int, int> tuple in tuples)
                 {
-                    List<Tuple<String, int, int>> tuples;
-                    labelMap.TryGetValue(relatedLabel, out tuples);
+                    string type = tuple.Item1;
+                    int index = tuple.Item2;
+                    int count = tuple.Item3;
+                    List<String> argList;
+                    TypeArgsMap.TryGetValue(type, out argList);
+                    string argType = argList.ElementAt(index);
 
-                    foreach (Tuple<String, int, int> tuple in tuples)
+                    var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(count + "_instance_of_" + type);
+                    var t2 = __.As(count + "_instance_of_" + type).Has("type", type).In("ARG_" + index).As(relatedLabel);
+
+                    if (!labelSet.Contains(count + "_instance_of_" + type))
                     {
-                        string type = tuple.Item1;
-                        int index = tuple.Item2;
-                        int count = tuple.Item3;
-                        List<String> argList;
-                        TypeArgsMap.TryGetValue(type, out argList);
-                        string argType = argList.ElementAt(index);
-  
-                        var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(count + "_instance_of_" + type);
-                        var t2 = __.As(count + "_instance_of_" + type).Has("type", type).In("ARG_" + index).As(relatedLabel);
-
-                        if (!labelSet.Contains(count + "_instance_of_" + type))
-                        {
-                            labelSet.Add(count + "_instance_of_" + type);
-                        }
-
-                        // Print out the Gremlin query for debugging.
-                        Console.WriteLine("__.As(\"" + relatedLabel + "\").Out(\"ARG_" + index + "\").Has(\"type\", \"" + type + "\").As(\"" + count + "_instance_of_" + type + "\"),");
-                        Console.WriteLine("__.As(\"" + count + "_instance_of_" + type + "\").Has(\"type\", \"" + type + "\").In(\"ARG_" + index + "\").As(\"" + relatedLabel + "\"),");
-
-                        subTraversals.Add(t1);
-                        subTraversals.Add(t2);
+                        labelSet.Add(count + "_instance_of_" + type);
                     }
-                }
 
-                // Make sure some intermediate labels of same type are not identical.
-                List<string> diffLabels = labelSet.ToList();
-                for (int i = 0; i < diffLabels.Count(); i++)
+                    // Print out the Gremlin query for debugging.
+                    Console.WriteLine("__.As(\"" + relatedLabel + "\").Out(\"ARG_" + index + "\").Has(\"type\", \"" + type + "\").As(\"" + count + "_instance_of_" + type + "\"),");
+                    Console.WriteLine("__.As(\"" + count + "_instance_of_" + type + "\").Has(\"type\", \"" + type + "\").In(\"ARG_" + index + "\").As(\"" + relatedLabel + "\"),");
+
+                    subTraversals.Add(t1);
+                    subTraversals.Add(t2);
+                }
+            }
+
+            // Make sure some intermediate labels of same type are not identical.
+            List<string> diffLabels = labelSet.ToList();
+            for (int i = 0; i < diffLabels.Count(); i++)
+            {
+                string difflabel = diffLabels[i];
+                for (int j = i + 1; j < diffLabels.Count(); j++)
                 {
-                    string difflabel = diffLabels[i];
-                    for (int j=i+1; j<diffLabels.Count(); j++)
-                    {
-                        string difflabel2 = diffLabels[j];
-                        var t = __.Where(difflabel, P.Neq(difflabel2));
-                        subTraversals.Add(t);
-                    }
+                    string difflabel2 = diffLabels[j];
+                    var t = __.Where(difflabel, P.Neq(difflabel2));
+                    subTraversals.Add(t);
                 }
+            }
 
+            Dictionary<String, List<String>> dict = new Dictionary<string, List<string>>();
+            var matchResult = traversal.Match<Vertex>(subTraversals.ToArray());
+            foreach (string outputLabel in outputLabels)
+            {
                 // Find the type of the label. Check if it is basic built-in type or other types.
                 string propName;
                 List<Tuple<string, int, int>> tupleList;
-                labelMap.TryGetValue(label, out tupleList);
+                labelMap.TryGetValue(outputLabel, out tupleList);
                 string labelFuncType = tupleList[0].Item1;
                 int labelIndex = tupleList[0].Item2;
                 List<String> argTypeList;
@@ -390,17 +574,25 @@
                 {
                     propName = "id";
                 }
+                List<string> list = matchResult.Select<Vertex>(outputLabel).Values<String>(propName).ToList() as List<string>;
+                dict.Add(outputLabel, list);
+            }
 
-                var vertices = traversal.Match<Vertex>(subTraversals.ToArray()).Select<Vertex>(label).Values<String>(propName).ToList();
-                foreach (string vid in vertices)
+            // Convert query result from lists of same type to pairs containing dictionary.
+            List<Dictionary<string, string>> result = new List<Dictionary<string, string>>();
+            int labelCount = dict[dict.Keys.ElementAt(0)].Count();
+            for (int i = 0; i < labelCount; i++)
+            {
+                Dictionary<string, string> pair = new Dictionary<string, string>();
+                foreach (string key in dict.Keys)
                 {
-                    Console.WriteLine(vid);
+                    string value = dict[key].ElementAt(i);
+                    pair.Add(key, value);
                 }
+                result.Add(pair);
+            }
 
-                Console.WriteLine();
-            }      
-
-            //Console.WriteLine(steps.Bytecode.StepInstructions);
+            return result;
         }
 
     }
