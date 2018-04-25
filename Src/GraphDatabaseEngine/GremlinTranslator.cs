@@ -115,7 +115,69 @@
             );
         }
 
-        // TODO: Recursively check if the FuncTerm already exists.
+        // Check if a duplicate exists in all existing models of same type.
+        public bool CheckDuplicate(string type, List<string> args)
+        {
+            bool isDuplicate = true;
+            // Find all FuncTerm with same type.
+            List<string> ids = new List<string>();
+            foreach (string id in IdTypeMap.Keys)
+            {
+                if (IdTypeMap[id] == type) ids.Add(id);
+            }
+
+            List<string> argTypes = TypeArgsMap[type];
+            foreach (string id in ids)
+            {
+                List<string> args2 = FuncTermArgsMap[id];
+                for (int i=0; i<argTypes.Count(); i++)
+                {
+                    if (argTypes[i] != "Integer" && argTypes[i] != "String")
+                    {
+                        if (!CheckFuncTermEquality(args[i], args2[i])) return false;
+                    }
+                    else
+                    {
+                        if (args[i] != args2[i]) return false;
+                    }
+                }
+            }
+            return isDuplicate;
+        }
+
+        // Recursively check if the FuncTerm already exists.
+        public bool CheckFuncTermEquality(string idx, string idy)
+        {
+            bool isEqual = true;
+            // FuncTerms belong to different types.
+            if (IdTypeMap[idx] != IdTypeMap[idy])
+            {
+                return false;
+            }
+            else
+            {
+                string type = IdTypeMap[idx];
+                List<string> argTypes = TypeArgsMap[type];
+                List<string> xargs = FuncTermArgsMap[idx];
+                List<string> yargs = FuncTermArgsMap[idy];
+                for (int i=0; i<xargs.Count(); i++)
+                {
+                    if (argTypes[i] != "Integer" && argTypes[i] != "String")
+                    {
+                        if (!CheckFuncTermEquality(xargs[i], yargs[i]))
+                        {
+                            return false;
+                        }
+                    }
+                    else
+                    {
+                        if (xargs[i] != yargs[i]) return false;
+                    }
+                }
+            }
+            return isEqual;
+        }
+
         // Recursively find all FuncTerms inside FuncTerm and convert all values to string without any type information.
         private void TraverseFuncTerm(string id, FuncTerm ft)
         {
@@ -223,78 +285,78 @@
             foreach (Dictionary<string, string> dict in finalResult)
             {
                 string idName = "_AUTOID_" + funcName + dict.GetHashCode();
-                IdTypeMap.Add(idName, funcName);
-
-                // Add a new model fact with unique ID.
-                executor.AddModelVertex(idName);
                 string typeName = funcName;
-                executor.AddProperty("id", idName, "type", typeName);
-                executor.connectFuncTermToType(typeName, idName);
 
+                // Get argument list from dictionary.
                 List<string> args = new List<string>();
                 for (int i = 0; i < labels.Count(); i++)
                 {
                     string label = labels[i];
-                    string labelType = GetLabelType(label, labelMap);
-                    if (labelType == "Integer")
+                    args.Add(dict[label]);
+                }
+
+                // Only add it to database when it is not a duplicate in existing models.
+                if (!CheckDuplicate(typeName, args))
+                {
+                    IdTypeMap.Add(idName, funcName);
+
+                    // Add a new model fact with unique ID.
+                    executor.AddModelVertex(idName);
+                    executor.AddProperty("id", idName, "type", typeName);
+                    executor.connectFuncTermToType(typeName, idName);
+
+                    for (int i = 0; i < labels.Count(); i++)
                     {
-                        string integerString = dict[label];
-                        args.Add(integerString);
-                        executor.connectCnstToFuncTerm(idName, integerString, "ARG_" + i);
+                        string label = labels[i];
+                        string labelType = GetLabelType(label, labelMap);
+                        if (labelType == "Integer")
+                        {
+                            string integerString = dict[label];
+                            executor.connectCnstToFuncTerm(idName, integerString, "ARG_" + i);
+                        }
+                        else if (labelType == "String")
+                        {
+                            string s = dict[label];
+                            executor.connectCnstToFuncTerm(idName, s, "ARG_" + i);
+                        }
+                        else
+                        {
+                            string idy = dict[label];
+                            executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i);
+                        }
                     }
-                    else if (labelType == "String")
-                    {
-                        string s = dict[label];
-                        args.Add(s);
-                        executor.connectCnstToFuncTerm(idName, s, "ARG_" + i);
-                    }
-                    else
-                    {
-                        string idy = dict[label];
-                        args.Add(idy);
-                        executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i);
-                    }
-                }                
-                FuncTermArgsMap.Add(idName, args);
+                    FuncTermArgsMap.Add(idName, args);
+                }
             }           
         }
 
-        // Execute domain rules in sequence and add new generated model facts into database.
-        public void ExecuteDomainRules(GraphDBExecutor executor)
+        public void ExecuteRule(Rule r, GraphDBExecutor executor)
         {
-            // Execute rules defined in the domain to add more model facts into database.
-            Program.FindAll(
-                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Rule) },
-                (path, n) =>
+            Body body = r.Bodies.ElementAt(0);
+            var labelMap = CreateLabelMap(body);
+            var allLabels = labelMap.Keys.ToList();
+            List<HashSet<string>> groups = GetSCCGroups(allLabels, labelMap);
+            List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
+
+            foreach (HashSet<string> group in groups)
+            {
+                List<Dictionary<string, string>> result = GetQueryResult(executor, body, group.ToList());
+                resultGroups.Add(result);
+            }
+
+            List<Dictionary<string, string>> finalResult = MergeResultGroups(resultGroups);
+
+            foreach (FuncTerm ft in r.Heads)
+            {
+                string funcName = (ft.Function as Id).Name;
+                List<string> labels = new List<string>();
+                foreach (var node in ft.Args)
                 {
-                    Rule r = n as Rule;
-                    Body body = r.Bodies.ElementAt(0);
-                    var labelMap = CreateLabelMap(body);
-                    var allLabels = labelMap.Keys.ToList();
-                    List<HashSet<string>> groups = GetSCCGroups(allLabels, labelMap);
-                    List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
-
-                    foreach (HashSet<string> group in groups)
-                    {
-                        List<Dictionary<string, string>> result = GetQueryResult(executor, body, group.ToList());
-                        resultGroups.Add(result);
-                    }
-
-                    List<Dictionary<string, string>> finalResult = MergeResultGroups(resultGroups);
-
-                    foreach (FuncTerm ft in r.Heads)
-                    {
-                        string funcName = (ft.Function as Id).Name;
-                        List<string> labels = new List<string>();
-                        foreach (var node in ft.Args)
-                        {
-                            Id id = node as Id;
-                            labels.Add(id.Name);
-                        }
-                        AddNonRecursiveModel(executor, labels, labelMap, funcName, finalResult);
-                    }
+                    Id id = node as Id;
+                    labels.Add(id.Name);
                 }
-            );
+                AddNonRecursiveModel(executor, labels, labelMap, funcName, finalResult);
+            }
         }
 
         public void ExportToGraphDB(GraphDBExecutor executor)
@@ -355,7 +417,29 @@
             }
 
             // Execute rules defined in domain in sequence.
-            ExecuteDomainRules(executor);
+            // Execute rules defined in the domain to add more model facts into database.
+            List<Rule> rules = new List<Rule>();
+            Program.FindAll(
+                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Rule) },
+                (path, n) =>
+                {
+                    Rule r = n as Rule;
+                    rules.Add(r);
+                }
+            );
+
+            // Execute rules in loop until no more new model fact is added into database.
+            int oldModelCount = -1;
+            int newModelCount = IdTypeMap.Count();
+            while (newModelCount != oldModelCount)
+            {
+                oldModelCount = newModelCount;
+                foreach(var rule in rules)
+                {
+                    ExecuteRule(rule, executor);
+                }
+                newModelCount = IdTypeMap.Count();
+            }
         }
 
         // Overload and return a list of labels that are all strongly connected to a given label including itself.
