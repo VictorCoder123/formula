@@ -118,7 +118,7 @@
         // Check if a duplicate exists in all existing models of same type.
         public bool CheckDuplicate(string type, List<string> args)
         {
-            bool isDuplicate = true;
+            bool isDuplicate = false;
             // Find all FuncTerm with same type.
             List<string> ids = new List<string>();
             foreach (string id in IdTypeMap.Keys)
@@ -129,18 +129,20 @@
             List<string> argTypes = TypeArgsMap[type];
             foreach (string id in ids)
             {
+                bool isSame = true;
                 List<string> args2 = FuncTermArgsMap[id];
                 for (int i=0; i<argTypes.Count(); i++)
                 {
                     if (argTypes[i] != "Integer" && argTypes[i] != "String")
                     {
-                        if (!CheckFuncTermEquality(args[i], args2[i])) return false;
+                        if (!CheckFuncTermEquality(args[i], args2[i])) isSame = false;
                     }
                     else
                     {
-                        if (args[i] != args2[i]) return false;
+                        if (args[i] != args2[i]) isSame = false;
                     }
                 }
+                if (isSame) return true;
             }
             return isDuplicate;
         }
@@ -636,47 +638,55 @@
                 }
             }
 
-            Dictionary<String, List<String>> dict = new Dictionary<string, List<string>>();
+            
             var matchResult = traversal.Match<Vertex>(subTraversals.ToArray());
-            foreach (string outputLabel in outputLabels)
-            {
-                // Find the type of the label. Check if it is basic built-in type or other types.
-                string propName;
-                List<Tuple<string, int, int>> tupleList;
-                labelMap.TryGetValue(outputLabel, out tupleList);
-                string labelFuncType = tupleList[0].Item1;
-                int labelIndex = tupleList[0].Item2;
-                List<String> argTypeList;
-                TypeArgsMap.TryGetValue(labelFuncType, out argTypeList);
-                string labelType = argTypeList[labelIndex];
+            int labelCount = outputLabels.Count();
+            IList<IDictionary<string, string>> list = new List<IDictionary<string, string>>();
 
-                if (labelType == "Integer" || labelType == "String")
+            // Gremlin Csharp version does not provide Select<Vertex>(string[] keys)
+            if (labelCount == 1)
+            {
+                string label = GetLabelType(outputLabels[0], labelMap);
+                string prop = (label == "String" || label == "Integer") ? "value" : "id";
+                var stringList = matchResult.Select<string>(outputLabels[0]).By(prop).ToList();
+                foreach (string str in stringList)
                 {
-                    propName = "value";
+                    var dict = new Dictionary<string, string>();
+                    dict.Add(label, str);
+                    list.Add(dict);
                 }
-                else
+            }
+            else if (labelCount == 2)
+            {
+                string label1 = GetLabelType(outputLabels[0], labelMap);
+                string label2 = GetLabelType(outputLabels[1], labelMap);
+                string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
+                string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
+                list = matchResult.Select<string>(outputLabels[0], outputLabels[1]).By(prop1).By(prop2).ToList();
+            }
+            else if (labelCount > 2)
+            {
+                string label1 = GetLabelType(outputLabels[0], labelMap);
+                string label2 = GetLabelType(outputLabels[1], labelMap);
+                string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
+                string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
+                var middleResult = matchResult.Select<string>(outputLabels[0], outputLabels[1], outputLabels.GetRange(2, labelCount-2).ToArray()).By(prop1).By(prop2);
+                for (int i = 2; i < labelCount; i++)
                 {
-                    propName = "id";
+                    string label = GetLabelType(outputLabels[i], labelMap);
+                    string prop = (label == "String" || label == "Integer") ? "value" : "id";
+                    middleResult = middleResult.By(prop);
                 }
-                List<string> list = matchResult.Select<Vertex>(outputLabel).Values<String>(propName).ToList() as List<string>;
-                dict.Add(outputLabel, list);
+                list = middleResult.ToList();
             }
 
-            // Convert query result from lists of same type to pairs containing dictionary.
-            List<Dictionary<string, string>> result = new List<Dictionary<string, string>>();
-            int labelCount = dict[dict.Keys.ElementAt(0)].Count();
-            for (int i = 0; i < labelCount; i++)
+            List<Dictionary<string, string>> convertedList = new List<Dictionary<string, string>>();
+            foreach (var dict in list)
             {
-                Dictionary<string, string> pair = new Dictionary<string, string>();
-                foreach (string key in dict.Keys)
-                {
-                    string value = dict[key].ElementAt(i);
-                    pair.Add(key, value);
-                }
-                result.Add(pair);
+                convertedList.Add((Dictionary<string, string>) dict);
             }
 
-            return result;
+            return convertedList;
         }
 
     }
