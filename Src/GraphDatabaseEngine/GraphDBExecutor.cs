@@ -103,6 +103,18 @@
             }
         }
 
+        // Connect Cnst to enum type (cnst -> enum type)
+        public void connectCnstToEnum(string enumType, string value)
+        {
+            AddEdge("meta", enumType, "value", value, "enum");
+        }
+
+        // Connect sub-type to its union type. (subtype -> type)
+        public void connectSubtypeToType(string type, string subtype)
+        {
+            AddEdge("meta", type, "meta", subtype, "subtype");
+        }
+
         // Connect Cnst to its type node Integer or String.
         public void connectCnstToType(string value, bool isString)
         {
@@ -231,6 +243,11 @@
             {
                 Console.WriteLine(item);
             }
+        }
+
+        public void Test6()
+        {
+            
         }
 
     }

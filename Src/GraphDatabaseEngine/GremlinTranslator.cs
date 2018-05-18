@@ -16,6 +16,13 @@
     using Gremlin.Net.Driver;
     using Gremlin.Net.Driver.Remote;
 
+    // TODO: Distinguish integer from string in graph database
+    // TODO: count{}
+    // TODO: Union type
+    // TODO: Negation
+    // TODO: type constraints like  a is A
+    // TODO: built-in operator like ==, !=, <=, >=, no
+    // TODO: Handle transitive closure with Gremlin Loop Matching Pattern.
     public class GremlinTranslator
     {
         private static readonly char[] cmdSplitChars = new char[] { ' ' };
@@ -31,17 +38,21 @@
         // Map type name to a list of type in arguments.
         public Dictionary<String, List<String>> TypeArgsMap { get; } 
 
+        // Map Union type name to a list of its subtypes including Enum type.
+        public Dictionary<String, List<String>> UnionTypeMap { get; }
+
         // A set of types defined in domain.
         public HashSet<String> typeSet = new HashSet<string>();
 
         // A set of Constants of either String or Integer type.
-        private HashSet<object> cnstSet = new HashSet<object>();
+        private HashSet<string> cnstSet = new HashSet<string>();
 
         public GremlinTranslator(string inputFile)
         {          
             IdTypeMap = new Dictionary<string, string>();
             FuncTermArgsMap = new Dictionary<String, List<string>>();
             TypeArgsMap = new Dictionary<string, List<string>>();
+            UnionTypeMap = new Dictionary<string, List<string>>();
             
             // Add built-in types Integer and String type.
             typeSet.Add("Integer");
@@ -93,11 +104,35 @@
                     for (int i=0; i<conDecl.Children.Count(); i++)
                     {
                         Field field = (Field)conDecl.Children.ElementAt(i);
-                        string argType = ((Id)field.Type).Name;
-                        argList.Add(argType);
+                        if (field.Type.NodeKind == NodeKind.Id)
+                        {
+                            string argType = ((Id)field.Type).Name;
+                            argList.Add(argType);
+                        }
+                        // Handle Union type which does not define a new type name. For example, A ::= new(id: Integer + String).
+                        else if (field.Type.NodeKind == NodeKind.Union)
+                        {
+                            Union union = field.Type as Union;
+                            string autoType = "AUTO_TYPE_" + field.Type.GetHashCode();
+                            argList.Add(autoType);
+                            HandleUnionType(union, autoType);
+                        }                       
                     }
                     TypeArgsMap.Add(conDecl.Name, argList);
                 }
+            );
+
+            // Find all UnionDecl in Domain
+            Program.FindAll(
+               new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.UnnDecl)},
+               (path, n) =>
+               {
+                   UnnDecl unnDecl = n as UnnDecl;
+                   string typename = unnDecl.Name;
+                   Union union = unnDecl.Body as Union;
+                   typeSet.Add(unnDecl.Name);
+                   HandleUnionType(union, typename);
+               }
             );
 
             // Find all ModelFact in Program.
@@ -113,6 +148,40 @@
                     TraverseFuncTerm(idName, ft);
                 }
             );
+        }
+
+        public void HandleUnionType(Union union, string typename)
+        {
+            typeSet.Add(typename);
+            List<string> subTypes = new List<string>();
+            foreach (var element in union.Children)
+            {
+                if (element.NodeKind == NodeKind.Id)
+                {
+                    subTypes.Add((element as Id).Name);
+                }
+                else if (element.NodeKind == NodeKind.Enum)
+                {
+                    // Automatically generate a new union type for eumeration containing Cnst in string format.
+                    string autoEnumType = "AUTO_ENUM_TYPE_" + element.GetHashCode();
+                    subTypes.Add(autoEnumType);
+                    typeSet.Add(autoEnumType);
+                    List<String> enumComponents = new List<string>();
+                    foreach (Cnst cnst in element.Children)
+                    {
+                        if (cnst.CnstKind == CnstKind.String)
+                        {
+                            enumComponents.Add(cnst.GetStringValue());
+                        }
+                        else if (cnst.CnstKind == CnstKind.Numeric)
+                        {
+                            enumComponents.Add(cnst.GetNumericValue().ToString());
+                        }
+                    }
+                    UnionTypeMap.Add(autoEnumType, enumComponents);
+                }
+            }
+            UnionTypeMap.Add(typename, subTypes);
         }
 
         // Check if a duplicate exists in all existing models of same type.
@@ -369,6 +438,43 @@
                 executor.AddTypeVertex(type);
             }
 
+            // Insert edge to denote the relation between union type and its subtypes or cnst and enum.
+            foreach (KeyValuePair<String, List<string>> entry in UnionTypeMap)
+            {
+                string unionType = entry.Key;
+                // Test if it is a union type or enum type
+                string sample = entry.Value.ElementAt(0);
+                if (typeSet.Contains(sample))
+                {
+                    foreach (string subtype in entry.Value)
+                    {
+                        executor.connectSubtypeToType(unionType, subtype);
+                    }
+                }
+                else
+                {
+                    string enumType = unionType;
+                    foreach (string cnstString in entry.Value)
+                    {
+                        // Determine the type of Cnst is either number or string.
+                        Rational r;
+                        bool isRational = Rational.TryParseDecimal(cnstString, out r);
+                        if (isRational)
+                        {
+                            cnstSet.Add(cnstString);
+                            executor.AddCnstVertex(cnstString, false);
+                            executor.AddProperty("value", cnstString, "type", "Integer");
+                        }
+                        else
+                        {
+                            cnstSet.Add(cnstString);
+                            executor.AddCnstVertex(cnstString, true);
+                            executor.AddProperty("value", cnstString, "type", "String");
+                        }
+                    }
+                }
+            }
+
             // Insert all models(FuncTerm) to GraphDB and connect them to their type nodes.
             foreach (KeyValuePair<String, String> entry in IdTypeMap)
             {
@@ -386,6 +492,7 @@
                 {
                     string obj = entry.Value[i];
                     string argType = GetArgType(idx, i);
+                    // Integer is interpreted as string and may need some fixes later.
                     if (argType == "Integer")
                     {
                         string value = obj;
@@ -625,6 +732,19 @@
                 }
             }
 
+            // Add constraints between related labels
+            List<string> relatedLabelList = relatedLabels.ToList();
+            for (int i = 0; i < relatedLabelList.Count(); i++)
+            {
+                string label1 = relatedLabelList[i];
+                for (int j = i + 1; j < relatedLabelList.Count(); j++)
+                {
+                    string label2 = relatedLabelList[j];
+                    var t = __.Where(label1, P.Neq(label2));
+                    subTraversals.Add(t);
+                }
+            }
+
             // Make sure some intermediate labels of same type are not identical.
             List<string> diffLabels = labelSet.ToList();
             for (int i = 0; i < diffLabels.Count(); i++)
@@ -637,8 +757,7 @@
                     subTraversals.Add(t);
                 }
             }
-
-            
+           
             var matchResult = traversal.Match<Vertex>(subTraversals.ToArray());
             int labelCount = outputLabels.Count();
             IList<IDictionary<string, string>> list = new List<IDictionary<string, string>>();
