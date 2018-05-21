@@ -315,42 +315,7 @@
             return finalResult;
         }
 
-        // Infer the type of label in FORMULA rule from label map.
-        public string GetLabelType(string label, Dictionary<String, List<Tuple<String, int, int>>> labelMap)
-        {
-            // Find the type of the label. Check if it is basic built-in type or other types.
-            List<Tuple<string, int, int>> tupleList;
-            labelMap.TryGetValue(label, out tupleList);
-            string labelFuncType = tupleList[0].Item1;
-            int labelIndex = tupleList[0].Item2;
-            List<String> argTypeList;
-            TypeArgsMap.TryGetValue(labelFuncType, out argTypeList);
-            string labelType = argTypeList[labelIndex];
-            return labelType;
-        }
-
-        public int GetLabelIndex(string label, Dictionary<String, List<Tuple<String, int, int>>> labelMap)
-        {
-            // Find the type of the label. Check if it is basic built-in type or other types.
-            List<Tuple<string, int, int>> tupleList;
-            labelMap.TryGetValue(label, out tupleList);
-            string labelFuncType = tupleList[0].Item1;
-            int labelIndex = tupleList[0].Item2;
-            return labelIndex;
-        }
-
-        // Get the type of argument corresponding to unique Id given Id and index.
-        public string GetArgType(string id, int index)
-        {
-            string idType;
-            IdTypeMap.TryGetValue(id, out idType);
-            List<string> argTypes;
-            TypeArgsMap.TryGetValue(idType, out argTypes);
-            return argTypes[index];
-        }
-
-        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, Dictionary<String, 
-            List<Tuple<String, int, int>>> labelMap, string funcName, List<Dictionary<string, string>> finalResult)
+        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, LabelMap labelMap, string funcName, List<Dictionary<string, string>> finalResult)
         {
             // Update new generated models into FuncTermArgsMap and IdTypeMap mappings
             foreach (Dictionary<string, string> dict in finalResult)
@@ -379,7 +344,7 @@
                     for (int i = 0; i < labels.Count(); i++)
                     {
                         string label = labels[i];
-                        string labelType = GetLabelType(label, labelMap);
+                        string labelType = labelMap.GetLabelType(label);
                         if (labelType == "Integer")
                         {
                             string integerString = dict[label];
@@ -404,9 +369,9 @@
         public void ExecuteRule(Rule r, GraphDBExecutor executor)
         {
             Body body = r.Bodies.ElementAt(0);
-            var labelMap = CreateLabelMap(body);
-            var allLabels = labelMap.Keys.ToList();
-            List<HashSet<string>> groups = GetSCCGroups(allLabels, labelMap);
+            var labelMap = new LabelMap(body, IdTypeMap, TypeArgsMap);
+            var allLabels = labelMap.GetAllLabels();
+            List<HashSet<string>> groups = labelMap.GetSCCGroups(allLabels);
             List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
 
             foreach (HashSet<string> group in groups)
@@ -428,6 +393,16 @@
                 }
                 AddNonRecursiveModel(executor, labels, labelMap, funcName, finalResult);
             }
+        }
+
+        // Get the type of argument corresponding to unique Id given Id and index.
+        public string GetArgType(string id, int index)
+        {
+            string idType;
+            IdTypeMap.TryGetValue(id, out idType);
+            List<string> argTypes;
+            TypeArgsMap.TryGetValue(idType, out argTypes);
+            return argTypes[index];
         }
 
         public void ExportToGraphDB(GraphDBExecutor executor)
@@ -551,70 +526,6 @@
             }
         }
 
-        // Overload and return a list of labels that are all strongly connected to a given label including itself.
-        public HashSet<String> FindSCCLabels(string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
-        {
-            HashSet<String> relatedLabels = new HashSet<string>();
-            FindSCCLabels(relatedLabels, label, labelMap);
-            return relatedLabels;
-        }
-
-        // Recursively return a list of labels that are all strongly connected.
-        public HashSet<String> FindSCCLabels(HashSet<String> labels, string label, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
-        { 
-            labels.Add(label);
-
-            List<Tuple<string, int, int>> srcTuples;
-            labelMap.TryGetValue(label, out srcTuples);
-
-            // srcTuples represents all occurance of target label.
-            foreach (var srcTuple in srcTuples)
-            {
-                string typeName = srcTuple.Item1;
-                int count = srcTuple.Item3;
-
-                // Traverse all labels to find matches for target label.
-                foreach (var dstLabel in labelMap.Keys)
-                {
-                    if (!labels.Contains(dstLabel))
-                    {
-                        List<Tuple<string, int, int>> dstTuples;
-                        labelMap.TryGetValue(dstLabel, out dstTuples);
-                        foreach (var dstTuple in dstTuples)
-                        {
-                            if (dstTuple.Item1 == typeName && dstTuple.Item3 == count)
-                            {
-                                labels.Add(dstLabel);
-                                FindSCCLabels(labels, dstLabel, labelMap);
-                            }
-                        }
-                    }
-                }
-            }
-
-            return labels;
-        }
-
-        public List<HashSet<string>> GetSCCGroups(List<string> labels, Dictionary<string, List<Tuple<string, int, int>>> labelMap)
-        {
-            List<HashSet<string>> list = new List<HashSet<string>>();
-            foreach (string label in labels)
-            {
-                bool exists = false;
-                // Check if current label exists in one of the hashset.
-                foreach (HashSet<string> set in list)
-                {
-                    if (set.Contains(label)) exists = true;
-                }
-                if (!exists)
-                {
-                    HashSet<string> scc = FindSCCLabels(label, labelMap);
-                    list.Add(scc);
-                }
-            }
-            return list;
-        }
-
         public Body ParseQueryString(string query)
         {
             var cmdLineName = new ProgramName("CommandLine.4ml");
@@ -640,77 +551,33 @@
             var bodies = ((Rule)rule.Node).Bodies;
             var body = bodies.ElementAt(0);
             return body;
-        }
-
-        // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
-        public Dictionary<String, List<Tuple<String, int, int>>> CreateLabelMap(Body body)
-        {
-            Dictionary<String, List<Tuple<String, int, int>>> labelMap = new Dictionary<string, List<Tuple<string, int, int>>>();
-            Dictionary<String, int> typeCounts = new Dictionary<string, int>();
-
-            foreach (Find find in body.Children)
-            {
-                FuncTerm ft = (FuncTerm)find.Match;
-                string typeName = ((Id)ft.Function).Name;
-
-                // Count the occurance of same type name in query.
-                if (!typeCounts.ContainsKey(typeName))
-                {
-                    typeCounts.Add(typeName, 0);
-                }
-                else
-                {
-                    int oldCount;
-                    typeCounts.TryGetValue(typeName, out oldCount);
-                    typeCounts[typeName] = oldCount + 1;
-                }
-
-                int currentCount;
-                typeCounts.TryGetValue(typeName, out currentCount);
-
-                for (int i = 0; i < ft.Args.Count(); i++)
-                {
-                    Id id = (Id)ft.Args.ElementAt(i);
-                    string label = id.Name;
-                    if (!labelMap.ContainsKey(label))
-                    {
-                        List<Tuple<String, int, int>> list = new List<Tuple<string, int, int>>();
-                        labelMap.Add(label, list);
-                    }
-                    List<Tuple<String, int, int>> tuples;
-                    labelMap.TryGetValue(label, out tuples);
-                    tuples.Add(new Tuple<String, int, int>(typeName, i, currentCount));
-                }
-            }
-
-            return labelMap;
-        }
+        }      
 
         // outputLabels must be all related without disjoint labels.
         public List<Dictionary<string, string>> GetQueryResult(GraphDBExecutor executor, Body body, List<string> outputLabels)
         {
-            // Map label to a list of tuples (type, index, count), type is the name of Function that contains label.
-            Dictionary<String, List<Tuple<String, int, int>>> labelMap = CreateLabelMap(body);
+            LabelMap labelMap = new LabelMap(body, IdTypeMap, TypeArgsMap);
 
+            // outputLabels should be a subset of all relatedLabels.
             // Take the first label and the rest should be included in relatedLabels.
             string firstLabel = outputLabels[0];
             var traversal = executor.NewTraversal().V();
             List<ITraversal> subTraversals = new List<ITraversal>();
 
             // Items in list are GraphTraversal<object, object> type.
-            var relatedLabels = FindSCCLabels(firstLabel, labelMap);
+            var relatedLabels = labelMap.FindSCCLabels(firstLabel);
             HashSet<String> labelSet = new HashSet<string>();
 
             foreach (string relatedLabel in relatedLabels)
             {
-                List<Tuple<String, int, int>> tuples;
-                labelMap.TryGetValue(relatedLabel, out tuples);
+                List<LabelMap.LabelInfo> labelInfoList;
+                labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
 
-                foreach (Tuple<String, int, int> tuple in tuples)
+                foreach (LabelMap.LabelInfo labelInfo in labelInfoList)
                 {
-                    string type = tuple.Item1;
-                    int index = tuple.Item2;
-                    int count = tuple.Item3;
+                    string type = labelInfo.Type;
+                    int index = labelInfo.ArgIndex;
+                    int count = labelInfo.InstanceIndex;
                     List<String> argList;
                     TypeArgsMap.TryGetValue(type, out argList);
                     string argType = argList.ElementAt(index);
@@ -731,6 +598,10 @@
                     subTraversals.Add(t2);
                 }
             }
+
+            // Add label bindings like c1 is C(a, b).
+
+            // Add count constraints of labels like count({s | ...}) > 1
 
             // Add constraints between related labels
             List<string> relatedLabelList = relatedLabels.ToList();
@@ -762,10 +633,10 @@
             int labelCount = outputLabels.Count();
             IList<IDictionary<string, string>> list = new List<IDictionary<string, string>>();
 
-            // Gremlin Csharp version does not provide Select<Vertex>(string[] keys)
+            // Gremlin Csharp version does not provide Select<Vertex>(string[] keys) and have to use some tweaks.
             if (labelCount == 1)
             {
-                string label = GetLabelType(outputLabels[0], labelMap);
+                string label = labelMap.GetLabelType(outputLabels[0]);
                 string prop = (label == "String" || label == "Integer") ? "value" : "id";
                 var stringList = matchResult.Select<string>(outputLabels[0]).By(prop).ToList();
                 foreach (string str in stringList)
@@ -777,22 +648,22 @@
             }
             else if (labelCount == 2)
             {
-                string label1 = GetLabelType(outputLabels[0], labelMap);
-                string label2 = GetLabelType(outputLabels[1], labelMap);
+                string label1 = labelMap.GetLabelType(outputLabels[0]);
+                string label2 = labelMap.GetLabelType(outputLabels[1]);
                 string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
                 string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
                 list = matchResult.Select<string>(outputLabels[0], outputLabels[1]).By(prop1).By(prop2).ToList();
             }
             else if (labelCount > 2)
             {
-                string label1 = GetLabelType(outputLabels[0], labelMap);
-                string label2 = GetLabelType(outputLabels[1], labelMap);
+                string label1 = labelMap.GetLabelType(outputLabels[0]);
+                string label2 = labelMap.GetLabelType(outputLabels[1]);
                 string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
                 string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
                 var middleResult = matchResult.Select<string>(outputLabels[0], outputLabels[1], outputLabels.GetRange(2, labelCount-2).ToArray()).By(prop1).By(prop2);
                 for (int i = 2; i < labelCount; i++)
                 {
-                    string label = GetLabelType(outputLabels[i], labelMap);
+                    string label = labelMap.GetLabelType(outputLabels[i]);
                     string prop = (label == "String" || label == "Integer") ? "value" : "id";
                     middleResult = middleResult.By(prop);
                 }
