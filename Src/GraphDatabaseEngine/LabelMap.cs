@@ -16,19 +16,18 @@
     {
         private Dictionary<String, List<LabelInfo>> LabelInfoMap { get; }
         private Dictionary<String, LabelInfo> BindingMap { get; }
-        private List<OperatorInfo> OperatorList { get; }
+        public List<OperatorInfo> OperatorList { get; }
 
         // Map Id of ModelFact to FuncTerm with original Id or auto-generated Id.
         public Dictionary<String, String> IdTypeMap { get; }
-
         // Map type name to a list of type in arguments.
         public Dictionary<String, List<String>> TypeArgsMap { get; }
 
         public class OperatorInfo
         {
-            private RelKind Operator;
-            private String Label;
-            private Cnst Cnst;
+            public RelKind Operator;
+            public String Label;
+            public Cnst Cnst;
 
             public OperatorInfo(RelKind op, string label, Cnst cnst)
             {
@@ -74,6 +73,21 @@
             CreateLabelMap(body);
         }
 
+        // Get binding label given type and the index of instance.
+        public string GetBindingLabel(string type, int instanceIndex)
+        {
+            foreach (string label in BindingMap.Keys)
+            {
+                LabelInfo info;
+                BindingMap.TryGetValue(label, out info);
+                if (info.Type == type && info.InstanceIndex == instanceIndex)
+                {
+                    return label;
+                }
+            }
+            return null;
+        }
+
         public List<string> GetAllLabels()
         {
             return LabelInfoMap.Keys.ToList();
@@ -82,6 +96,12 @@
         // Infer the type of label in FORMULA rule from label map.
         public string GetLabelType(string label)
         {
+            if (BindingMap.Keys.Contains(label))
+            {
+                LabelInfo info;
+                BindingMap.TryGetValue(label, out info);
+                return info.Type;
+            }
             // Find the type of the label. Check if it is basic built-in type or other types.
             List<LabelInfo> labelInfoList;
             LabelInfoMap.TryGetValue(label, out labelInfoList);
@@ -183,6 +203,7 @@
                         string label = (compr.Heads.ElementAt(0) as Id).Name;
                         Body comprBody = (compr.Bodies.ElementAt(0) as Body);
                         OperatorInfo info = new OperatorInfo(relConstr.Op, label, value);
+                        OperatorList.Add(info);
                         // Recursively Add labels inside count({s | ...}) into label map.
                         CreateLabelMap(comprBody);
                     }

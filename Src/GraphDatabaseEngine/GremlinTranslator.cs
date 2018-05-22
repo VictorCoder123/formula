@@ -567,6 +567,7 @@
             // Items in list are GraphTraversal<object, object> type.
             var relatedLabels = labelMap.FindSCCLabels(firstLabel);
             HashSet<String> labelSet = new HashSet<string>();
+            HashSet<String> relatedBindingLabels = new HashSet<string>();
 
             foreach (string relatedLabel in relatedLabels)
             {
@@ -582,26 +583,85 @@
                     TypeArgsMap.TryGetValue(type, out argList);
                     string argType = argList.ElementAt(index);
 
-                    var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(count + "_instance_of_" + type);
-                    var t2 = __.As(count + "_instance_of_" + type).Has("type", type).In("ARG_" + index).As(relatedLabel);
-
-                    if (!labelSet.Contains(count + "_instance_of_" + type))
+                    string instanceLabel = labelMap.GetBindingLabel(type, count);
+                    if (instanceLabel == null)
                     {
-                        labelSet.Add(count + "_instance_of_" + type);
+                        instanceLabel = count + "_instance_of_" + type;
+                    }
+                    else
+                    {
+                        relatedBindingLabels.Add(instanceLabel);
                     }
 
-                    // Print out the Gremlin query for debugging.
-                    Console.WriteLine("__.As(\"" + relatedLabel + "\").Out(\"ARG_" + index + "\").Has(\"type\", \"" + type + "\").As(\"" + count + "_instance_of_" + type + "\"),");
-                    Console.WriteLine("__.As(\"" + count + "_instance_of_" + type + "\").Has(\"type\", \"" + type + "\").In(\"ARG_" + index + "\").As(\"" + relatedLabel + "\"),");
+                    var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(instanceLabel);
+                    var t2 = __.As(instanceLabel).Has("type", type).In("ARG_" + index).As(relatedLabel);
+
+                    if (!labelSet.Contains(instanceLabel))
+                    {
+                        labelSet.Add(instanceLabel);
+                    }
+
+                    string commandString = string.Format(@"__.As({0}).Out('ARG_{1}').Has('type', {2}).As('{4}');
+__.As('{4}').Has('type', {2}).In('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel);
+                    Console.WriteLine(commandString);
 
                     subTraversals.Add(t1);
                     subTraversals.Add(t2);
                 }
             }
 
-            // Add label bindings like c1 is C(a, b).
+            // Add label bindings like c1 is C(a, b) into outputLabels to be selected.
+            foreach (string instanceLabel in relatedBindingLabels)
+            {
+                outputLabels.Add(instanceLabel);
+            }
 
             // Add count constraints of labels like count({s | ...}) > 1
+            foreach (var op in labelMap.OperatorList)
+            {
+                TraversalPredicate pred;
+                string predStr;
+                string label = op.Label;
+                Cnst cnst = op.Cnst;
+                int num = (int)cnst.GetNumericValue().Numerator;
+
+                if (op.Operator == RelKind.Gt)
+                {
+                    pred = P.Gt(num);
+                    predStr = string.Format("Gt({0})", num);
+                }
+                else if (op.Operator == RelKind.Lt)
+                {
+                    pred = P.Lt(num);
+                    predStr = string.Format("Lt({0})", num);
+                }
+                else if (op.Operator == RelKind.Ge)
+                {
+                    pred = P.Gte(num);
+                    predStr = string.Format("Ge({0})", num);
+                }
+                else if (op.Operator == RelKind.Le)
+                {
+                    pred = P.Lte(num);
+                    predStr = string.Format("Le({0})", num);
+                }
+                else if (op.Operator == RelKind.Eq)
+                {
+                    pred = P.Eq(num);
+                    predStr = string.Format("Eq({0})", num);
+                }
+                else // (op.Operator == RelKind.Neq)
+                {
+                    pred = P.Neq(num);
+                    predStr = string.Format("Neq({0})", num);
+                } 
+
+                var t = __.Where(__.As(label).Count().Is(pred));
+                subTraversals.Add(t);
+
+                string commandStr = string.Format("__.Where(__.As({0}).Count().Is({1})", label, predStr);
+                Console.WriteLine(commandStr);
+            }
 
             // Add constraints between related labels
             List<string> relatedLabelList = relatedLabels.ToList();
@@ -612,6 +672,8 @@
                 {
                     string label2 = relatedLabelList[j];
                     var t = __.Where(label1, P.Neq(label2));
+                    string commandString = string.Format(@"__.Where({0}, P.Neq({1});", label1, label2);
+                    Console.WriteLine(commandString);
                     subTraversals.Add(t);
                 }
             }
@@ -625,6 +687,8 @@
                 {
                     string difflabel2 = diffLabels[j];
                     var t = __.Where(difflabel, P.Neq(difflabel2));
+                    string commandString = string.Format(@"__.Where({0}, P.Neq({1});", difflabel, difflabel2);
+                    Console.WriteLine(commandString);
                     subTraversals.Add(t);
                 }
             }
@@ -633,7 +697,24 @@
             int labelCount = outputLabels.Count();
             IList<IDictionary<string, string>> list = new List<IDictionary<string, string>>();
 
-            // Gremlin Csharp version does not provide Select<Vertex>(string[] keys) and have to use some tweaks.
+            // Print out all selected labels in Select step
+            string selectedLabelString = "Select(";
+            for (int i=0; i < outputLabels.Count(); i++)
+            {
+                string label = outputLabels.ElementAt(i);
+                if (i == outputLabels.Count - 1)
+                {
+                    selectedLabelString += "'" + label + "'";
+                }
+                else
+                {
+                    selectedLabelString += "'" + label + "', ";
+                }
+            }
+            selectedLabelString += ")";
+            Console.WriteLine(selectedLabelString);
+
+            // Gremlin CSharp version does not provide Select<Vertex>(string[] keys) and have to use some tweaks.
             if (labelCount == 1)
             {
                 string label = labelMap.GetLabelType(outputLabels[0]);
@@ -669,6 +750,8 @@
                 }
                 list = middleResult.ToList();
             }
+
+            Console.WriteLine("\n");
 
             List<Dictionary<string, string>> convertedList = new List<Dictionary<string, string>>();
             foreach (var dict in list)
