@@ -237,17 +237,28 @@
 
         public void Test5()
         {
-            var list = NewTraversal(graph).V().Has("value", "4").Values<string>("value").ToList();
+            var list = NewTraversal(graph).V()
+                      .Match<Vertex>(
+                        __.As("a").Out("ARG_0").Has("type", "C").As("s"),
+                        __.As("s").Has("type", "C").In("ARG_0").As("a"),
+                        __.As("b").Out("ARG_1").Has("type", "C").As("s"),
+                        __.As("s").Has("type", "C").In("ARG_1").As("b"),
+                        __.As("s").Count().As("cnt"),
+                        __.Where("a", P.Neq("b"))
+                     )//.Where(__.As("s").Count().Is(P.Gt(1)))
+                      //.Where("cnt", P.Gt(1))
+                      //.Count().As("ccc")
+                      .Select<string>("s").By("id")
+                      //.Select<Vertex>("s").As("ss")
+                      .Count()
+                      //.Where(__.As("s").Count().Is(P.Gt(1)))
+                      .ToList();
+                     //.Select<Vertex>("cnt").Values<int>().ToList();
 
             foreach (var item in list)
             {
                 Console.WriteLine(item);
             }
-        }
-
-        public void Test6()
-        {
-            
         }
 
     }

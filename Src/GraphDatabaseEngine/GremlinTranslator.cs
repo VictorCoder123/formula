@@ -366,6 +366,51 @@
             }           
         }
 
+        public bool SatisfyCountConstraint(LabelMap labelMap, int resultCount, HashSet<string> relatedLabels)
+        {
+            // Add count constraints of labels like count({s | ...}) > 1
+            foreach (string relatedLabel in relatedLabels)
+            {
+                foreach (var op in labelMap.OperatorList)
+                {
+                    string label = op.Label;
+                    Cnst cnst = op.Cnst;
+                    int num = (int)cnst.GetNumericValue().Numerator;
+
+                    if (relatedLabel == label)
+                    {
+                        if (op.Operator == RelKind.Gt)
+                        {
+                            if (resultCount <= num) return false;
+                        }
+                        else if (op.Operator == RelKind.Lt)
+                        {
+                            if (resultCount >= num) return false;
+                        }
+                        else if (op.Operator == RelKind.Ge)
+                        {
+                            if (resultCount < num) return false;
+                        }
+                        else if (op.Operator == RelKind.Le)
+                        {
+                            if (resultCount > num) return false;
+                        }
+                        else if (op.Operator == RelKind.Eq)
+                        {
+                            if (resultCount != num) return false;
+                        }
+                        else // (op.Operator == RelKind.Neq)
+                        {
+                            if (resultCount == num) return false;
+                        }
+                    }
+                }
+            }
+
+            return true;
+            
+        }
+
         public void ExecuteRule(Rule r, GraphDBExecutor executor)
         {
             Body body = r.Bodies.ElementAt(0);
@@ -377,6 +422,13 @@
             foreach (HashSet<string> group in groups)
             {
                 List<Dictionary<string, string>> result = GetQueryResult(executor, body, group.ToList());
+
+                if (!SatisfyCountConstraint(labelMap, result.Count(), group))
+                {   
+                    // Terminate rule execution if the count of some labels does not satify constraints.
+                    return;
+                }
+
                 resultGroups.Add(result);
             }
 
@@ -614,54 +666,7 @@ __.As('{4}').Has('type', {2}).In('ARG_{1}').As({0});", relatedLabel, index, type
             foreach (string instanceLabel in relatedBindingLabels)
             {
                 outputLabels.Add(instanceLabel);
-            }
-
-            // Add count constraints of labels like count({s | ...}) > 1
-            foreach (var op in labelMap.OperatorList)
-            {
-                TraversalPredicate pred;
-                string predStr;
-                string label = op.Label;
-                Cnst cnst = op.Cnst;
-                int num = (int)cnst.GetNumericValue().Numerator;
-
-                if (op.Operator == RelKind.Gt)
-                {
-                    pred = P.Gt(num);
-                    predStr = string.Format("Gt({0})", num);
-                }
-                else if (op.Operator == RelKind.Lt)
-                {
-                    pred = P.Lt(num);
-                    predStr = string.Format("Lt({0})", num);
-                }
-                else if (op.Operator == RelKind.Ge)
-                {
-                    pred = P.Gte(num);
-                    predStr = string.Format("Ge({0})", num);
-                }
-                else if (op.Operator == RelKind.Le)
-                {
-                    pred = P.Lte(num);
-                    predStr = string.Format("Le({0})", num);
-                }
-                else if (op.Operator == RelKind.Eq)
-                {
-                    pred = P.Eq(num);
-                    predStr = string.Format("Eq({0})", num);
-                }
-                else // (op.Operator == RelKind.Neq)
-                {
-                    pred = P.Neq(num);
-                    predStr = string.Format("Neq({0})", num);
-                } 
-
-                var t = __.Where(__.As(label).Count().Is(pred));
-                subTraversals.Add(t);
-
-                string commandStr = string.Format("__.Where(__.As({0}).Count().Is({1})", label, predStr);
-                Console.WriteLine(commandStr);
-            }
+            }          
 
             // Add constraints between related labels
             List<string> relatedLabelList = relatedLabels.ToList();
