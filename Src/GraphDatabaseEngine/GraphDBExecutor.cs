@@ -76,12 +76,12 @@
             source.ToList();
         }
 
-        // Find nodes with specific property and connect them as an edge with dst points to src.
+        // Find nodes with specific property and connect them as an edge with dst points to src. (src -> dst)
         public void AddEdge(string srcKey, object srcValue, string dstKey, object dstValue, string edgeType)
         {
             var source = NewTraversal(graph);
-            var traversal = source.V().Has(srcKey, srcValue).As("a")
-                                  .V().Has(dstKey, dstValue)
+            var traversal = source.V().Has(dstKey, dstValue).As("a")
+                                  .V().Has(srcKey, srcValue)
                                   .AddE(edgeType).To("a").ToList();
         }
 
@@ -90,8 +90,8 @@
             AddEdge(srcProp.Key, srcProp.Value, dstProp.Key, dstProp.Value, edgeType);
         }
 
-        // Connect Cnst to FuncTerm as argument.
-        public void connectCnstToFuncTerm(string id, object cnst, string edgeType)
+        // Connect Cnst to FuncTerm as argument. (FuncTerm -> cnst)
+        public void connectFuncTermToCnst(string id, object cnst, string edgeType)
         {
             if (cnst.GetType() == typeof(String))
             {
@@ -104,40 +104,40 @@
         }
 
         // Connect Cnst to enum type (cnst -> enum type)
-        public void connectCnstToEnum(string enumType, string value)
+        public void connectCnstToEnumType(string value, string enumType)
         {
-            AddEdge("meta", enumType, "value", value, "enum");
+            AddEdge("value", value, "meta", enumType, "enum");
         }
 
-        // Connect sub-type to its union type. (subtype -> type)
-        public void connectSubtypeToType(string type, string subtype)
+        // Connect sub-type to its union type. (subtype -> type), the label name of edge is "type".
+        public void connectSubtypeToType(string subtype, string type)
         {
-            AddEdge("meta", type, "meta", subtype, "subtype");
+            AddEdge("meta", subtype, "meta", type, "type");
         }
 
-        // Connect Cnst to its type node Integer or String.
+        // Connect Cnst to its type node Integer or String. (cnst -> type)
         public void connectCnstToType(string value, bool isString)
         {
             if (isString)
             {
-                AddEdge("meta", "String", "value", value, "type");
+                AddEdge("value", value, "meta", "String", "type");
             }
             else
             {
-                AddEdge("meta", "Integer", "value", value, "type");
+                AddEdge("value", value, "meta", "Integer", "type");
             }
         }
 
-        // Connect argument FuncTerm to parent FuncTerm. (idy -> idx)
+        // Connect parent FuncTerm to argument FuncTerm. (idx -> idy)
         public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType)
         {
             AddEdge("id", idx, "id", idy, edgeType);
         }
 
         // Connect FuncTerm to type (id -> type)
-        public void connectFuncTermToType(string type, string id)
+        public void connectFuncTermToType(string id, string type)
         {
-            AddEdge("meta", type, "id", id, "type");
+            AddEdge("id", id, "meta", type, "type");
         }
 
         public void Test1()

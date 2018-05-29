@@ -339,7 +339,7 @@
                     // Add a new model fact with unique ID.
                     executor.AddModelVertex(idName);
                     executor.AddProperty("id", idName, "type", typeName);
-                    executor.connectFuncTermToType(typeName, idName);
+                    executor.connectFuncTermToType(idName, typeName);
 
                     for (int i = 0; i < labels.Count(); i++)
                     {
@@ -348,12 +348,12 @@
                         if (labelType == "Integer")
                         {
                             string integerString = dict[label];
-                            executor.connectCnstToFuncTerm(idName, integerString, "ARG_" + i);
+                            executor.connectFuncTermToCnst(idName, integerString, "ARG_" + i);
                         }
                         else if (labelType == "String")
                         {
                             string s = dict[label];
-                            executor.connectCnstToFuncTerm(idName, s, "ARG_" + i);
+                            executor.connectFuncTermToCnst(idName, s, "ARG_" + i);
                         }
                         else
                         {
@@ -475,7 +475,7 @@
                 {
                     foreach (string subtype in entry.Value)
                     {
-                        executor.connectSubtypeToType(unionType, subtype);
+                        executor.connectSubtypeToType(subtype, unionType);
                     }
                 }
                 else
@@ -508,7 +508,7 @@
                 executor.AddModelVertex(entry.Key);
                 string typeName = entry.Value;
                 executor.AddProperty("id", entry.Key, "type", typeName);
-                executor.connectFuncTermToType(typeName, entry.Key);
+                executor.connectFuncTermToType(entry.Key, typeName);
             }
 
             // Insert edge to denote the relation between FuncTerm and its arguments.
@@ -530,7 +530,7 @@
                             executor.AddProperty("value", value, "type", "Integer");
                             executor.connectCnstToType(value, false);
                         }
-                        executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
+                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i);
                     }
                     else if (argType == "String")
                     {
@@ -542,7 +542,7 @@
                             executor.AddProperty("value", value, "type", "String");
                             executor.connectCnstToType(value, true);
                         }
-                        executor.connectCnstToFuncTerm(idx, value, "ARG_" + i);
+                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i);
                     }
                     else
                     {
@@ -645,16 +645,16 @@
                         relatedBindingLabels.Add(instanceLabel);
                     }
 
-                    var t1 = __.As(relatedLabel).Out("ARG_" + index).Has("type", type).As(instanceLabel);
-                    var t2 = __.As(instanceLabel).Has("type", type).In("ARG_" + index).As(relatedLabel);
+                    var t1 = __.As(relatedLabel).In("ARG_" + index).Has("type", type).As(instanceLabel);
+                    var t2 = __.As(instanceLabel).Has("type", type).Out("ARG_" + index).As(relatedLabel);
 
                     if (!labelSet.Contains(instanceLabel))
                     {
                         labelSet.Add(instanceLabel);
                     }
 
-                    string commandString = string.Format(@"__.As({0}).Out('ARG_{1}').Has('type', {2}).As('{4}');
-__.As('{4}').Has('type', {2}).In('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel);
+                    string commandString = string.Format(@"__.As({0}).In('ARG_{1}').Has('type', {2}).As('{4}');
+__.As('{4}').Has('type', {2}).Out('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel);
                     Console.WriteLine(commandString);
 
                     subTraversals.Add(t1);
