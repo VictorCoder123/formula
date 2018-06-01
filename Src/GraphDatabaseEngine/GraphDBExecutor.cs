@@ -42,6 +42,14 @@
                 .ToList();
         }
 
+        public void AddVertex(string key1, object value1, string key2, object value2)
+        {
+            var source = NewTraversal(graph).AddV()
+                .Property(key1, value1)
+                .Property(key2, value2)
+                .ToList();
+        }
+
         // Add node with a list of properties in the format of key/value pairs.
         public void AddVertex(List<KeyValuePair<string, object>> properties)
         {
@@ -53,91 +61,104 @@
             source.ToList();
         }
 
-        public void AddProperty(string key, string value, string propKey, string propValue)
+        public void AddProperty(string key, string value, string propKey, string propValue, string domain)
         {
-            var source = NewTraversal(graph).V().Has(key, value).Property(propKey, propValue).ToList();
+            var source = NewTraversal(graph).V().Has(key, value).Has("domain", domain).Property(propKey, propValue).ToList();
         }
 
-        public void AddTypeVertex(string type)
+        public void AddDomainVertex(string domain)
         {
-            AddVertex("meta", type);
+            AddVertex("scope", domain, "domain", domain);
         }
 
-        public void AddModelVertex(string id)
+        public void AddTypeVertex(string type, string domain)
         {
-            AddVertex("id", id);
+            AddVertex("meta", type, "domain", domain);
         }
 
-        public void AddCnstVertex(string value, bool isString)
+        public void AddModelVertex(string id, string domain)
+        {
+            AddVertex("id", id, "domain", domain);
+        }
+
+        public void AddCnstVertex(string value, bool isString, string domain)
         {
             var source = NewTraversal(graph).AddV();
             source = source.Property("value", value);
             source = source.Property("isString", isString);
+            source = source.Property("domain", domain);
             source.ToList();
         }
 
         // Find nodes with specific property and connect them as an edge with dst points to src. (src -> dst)
-        public void AddEdge(string srcKey, object srcValue, string dstKey, object dstValue, string edgeType)
+        public void AddEdge(string srcKey, object srcValue, string dstKey, object dstValue, string edgeType, string domain)
         {
             var source = NewTraversal(graph);
-            var traversal = source.V().Has(dstKey, dstValue).As("a")
-                                  .V().Has(srcKey, srcValue)
+            var traversal = source.V().Has(dstKey, dstValue).Has("domain", domain).As("a")
+                                  .V().Has(srcKey, srcValue).Has("domain", domain)
                                   .AddE(edgeType).To("a").ToList();
         }
 
-        public void AddEdge(KeyValuePair<String, object> srcProp, KeyValuePair<String, object> dstProp, string edgeType)
+        public void AddEdge(KeyValuePair<String, object> srcProp, KeyValuePair<String, object> dstProp, string edgeType, string domain)
         {
-            AddEdge(srcProp.Key, srcProp.Value, dstProp.Key, dstProp.Value, edgeType);
+            AddEdge(srcProp.Key, srcProp.Value, dstProp.Key, dstProp.Value, edgeType, domain);
         }
 
         // Connect Cnst to FuncTerm as argument. (FuncTerm -> cnst)
-        public void connectFuncTermToCnst(string id, object cnst, string edgeType)
+        public void connectFuncTermToCnst(string id, object cnst, string edgeType, string domain)
         {
             if (cnst.GetType() == typeof(String))
             {
-                AddEdge("id", id, "value", (String)cnst, edgeType);  
+                AddEdge("id", id, "value", (String)cnst, edgeType, domain);  
             }
             else if (cnst.GetType() == typeof(int))
             {
-                AddEdge("id", id, "value", (int)cnst, edgeType);
+                AddEdge("id", id, "value", (int)cnst, edgeType, domain);
             }
+        }
+
+        // Connect type to its scope node. (type -> domain)
+        public void connectTypeToDomain(string type, string domain)
+        {
+            string edgeLabel = "domain";
+            AddEdge("meta", type, "scope", domain, edgeLabel, domain);
         }
 
         // Connect Cnst to enum type (cnst -> enum type)
-        public void connectCnstToEnumType(string value, string enumType)
+        public void connectCnstToEnumType(string value, string enumType, string domain)
         {
-            AddEdge("value", value, "meta", enumType, "enum");
+            AddEdge("value", value, "meta", enumType, "enum", domain);
         }
 
         // Connect sub-type to its union type. (subtype -> type), the label name of edge is "type".
-        public void connectSubtypeToType(string subtype, string type)
+        public void connectSubtypeToType(string subtype, string type, string domain)
         {
-            AddEdge("meta", subtype, "meta", type, "type");
+            AddEdge("meta", subtype, "meta", type, "type", domain);
         }
 
         // Connect Cnst to its type node Integer or String. (cnst -> type)
-        public void connectCnstToType(string value, bool isString)
+        public void connectCnstToType(string value, bool isString, string domain)
         {
             if (isString)
             {
-                AddEdge("value", value, "meta", "String", "type");
+                AddEdge("value", value, "meta", "String", "type", domain);
             }
             else
             {
-                AddEdge("value", value, "meta", "Integer", "type");
+                AddEdge("value", value, "meta", "Integer", "type", domain);
             }
         }
 
         // Connect parent FuncTerm to argument FuncTerm. (idx -> idy)
-        public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType)
+        public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType, string domain)
         {
-            AddEdge("id", idx, "id", idy, edgeType);
+            AddEdge("id", idx, "id", idy, edgeType, domain);
         }
 
         // Connect FuncTerm to type (id -> type)
-        public void connectFuncTermToType(string id, string type)
+        public void connectFuncTermToType(string id, string type, string domain)
         {
-            AddEdge("id", id, "meta", type, "type");
+            AddEdge("id", id, "meta", type, "type", domain);
         }
 
         public void Test1()

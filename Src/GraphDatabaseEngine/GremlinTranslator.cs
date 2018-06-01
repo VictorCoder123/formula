@@ -16,9 +16,8 @@
     using Gremlin.Net.Driver;
     using Gremlin.Net.Driver.Remote;
 
+    // TODO: Add more edges for Edge label like a1.x = 1
     // TODO: Distinguish integer from string in graph database
-    // TODO: count{}
-    // TODO: Union type
     // TODO: Negation
     // TODO: type constraints like  a is A
     // TODO: built-in operator like ==, !=, <=, >=, no
@@ -29,34 +28,11 @@
 
         public AST<Program> Program { get; }
         
-        // Map Id of ModelFact to FuncTerm with original Id or auto-generated Id.
-        public Dictionary<String, String> IdTypeMap { get; }
-
-        // Map Id of ModelFact to a list of ModelFact Id or Constants in arguments.
-        public Dictionary<String, List<string>> FuncTermArgsMap { get; }
-
-        // Map type name to a list of type in arguments.
-        public Dictionary<String, List<String>> TypeArgsMap { get; } 
-
-        // Map Union type name to a list of its subtypes including Enum type.
-        public Dictionary<String, List<String>> UnionTypeMap { get; }
-
-        // A set of types defined in domain.
-        public HashSet<String> typeSet = new HashSet<string>();
-
-        // A set of Constants of either String or Integer type.
-        private HashSet<string> cnstSet = new HashSet<string>();
+        public Dictionary<string, DomainStore> DomainStores { get; }
 
         public GremlinTranslator(string inputFile)
-        {          
-            IdTypeMap = new Dictionary<string, string>();
-            FuncTermArgsMap = new Dictionary<String, List<string>>();
-            TypeArgsMap = new Dictionary<string, List<string>>();
-            UnionTypeMap = new Dictionary<string, List<string>>();
-            
-            // Add built-in types Integer and String type.
-            typeSet.Add("Integer");
-            typeSet.Add("String");
+        {
+            DomainStores = new Dictionary<string, DomainStore>();
 
             Env env = new Env();
             InstallResult ires;
@@ -93,118 +69,155 @@
                     f.Item2.Message));
             }
 
-            // Find all ConDecl in Domain.        
             Program.FindAll(
-                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.ConDecl)},
+                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Domain) },
                 (path, n) =>
                 {
-                    ConDecl conDecl = n as ConDecl;
-                    typeSet.Add(conDecl.Name);
-                    List<String> argList = new List<string>();
-                    for (int i=0; i<conDecl.Children.Count(); i++)
+                    // Create separate store for each domain.
+                    Domain domain = n as Domain;
+                    DomainStore store = new DomainStore(domain.Name);
+
+                    foreach (Rule rule in domain.Rules)
                     {
-                        Field field = (Field)conDecl.Children.ElementAt(i);
-                        if (field.Type.NodeKind == NodeKind.Id)
-                        {
-                            string argType = ((Id)field.Type).Name;
-                            argList.Add(argType);
-                        }
-                        // Handle Union type which does not define a new type name. For example, A ::= new(id: Integer + String).
-                        else if (field.Type.NodeKind == NodeKind.Union)
-                        {
-                            Union union = field.Type as Union;
-                            string autoType = "AUTO_TYPE_" + field.Type.GetHashCode();
-                            argList.Add(autoType);
-                            HandleUnionType(union, autoType);
-                        }                       
+                        store.AddRule(rule);
                     }
-                    TypeArgsMap.Add(conDecl.Name, argList);
+
+                    foreach (var decl in domain.TypeDecls)
+                    {
+                        if (decl.NodeKind == NodeKind.ConDecl)
+                        {
+                            ConDecl conDecl = decl as ConDecl;
+                            store.AddType(conDecl.Name);
+                            for (int i = 0; i < conDecl.Children.Count(); i++)
+                            {
+                                Field field = (Field)conDecl.Children.ElementAt(i);
+                                if (field.Type.NodeKind == NodeKind.Id)
+                                {
+                                    string argType = ((Id)field.Type).Name;
+                                    store.AddTypeArg(conDecl.Name, argType);
+                                }
+                                // Handle Union type which does not define a new type name. For example, A ::= new(id: Integer + String).
+                                else if (field.Type.NodeKind == NodeKind.Union)
+                                {
+                                    Union union = field.Type as Union;
+                                    string autoType = "AUTO_TYPE_" + field.Type.GetHashCode();
+                                    store.AddTypeArg(conDecl.Name, autoType);
+                                    HandleUnionType(union, autoType, store);
+                                }
+                            }
+                        }
+                        else if (decl.NodeKind == NodeKind.UnnDecl)
+                        {
+                            UnnDecl unnDecl = decl as UnnDecl;
+                            string typename = unnDecl.Name;
+                            Union union = unnDecl.Body as Union;
+                            store.AddType(unnDecl.Name);
+                            HandleUnionType(union, typename, store);
+                        }
+                    }
+
+                    foreach (var composition in domain.Compositions)
+                    {
+                        if (composition.NodeKind == NodeKind.ModRef)
+                        {
+                            // Copy all domain info from inherited domain.
+                            ModRef mr = composition;
+                            string inheritedDomainName = mr.Name;
+                            DomainStore inheritedDomainStore = DomainStores[inheritedDomainName];
+                            store.CopyDomainStore(inheritedDomainStore);
+                        }
+                    }
+
+                    //foreach(var Model in domain.)
+
+                    // Each domain has its own store for all domain and model information.
+                    DomainStores.Add(store.DomainName, store);
                 }
             );
 
-            // Find all UnionDecl in Domain
+            // Find all models containing ModelFacts.
             Program.FindAll(
-               new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.UnnDecl)},
-               (path, n) =>
-               {
-                   UnnDecl unnDecl = n as UnnDecl;
-                   string typename = unnDecl.Name;
-                   Union union = unnDecl.Body as Union;
-                   typeSet.Add(unnDecl.Name);
-                   HandleUnionType(union, typename);
-               }
-            );
-
-            // Find all ModelFact in Program.
-            Program.FindAll(
-                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.ModelFact) },
+                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Model) },
                 (path, n) =>
                 {
-                    ModelFact mf = n as ModelFact;
-                    FuncTerm ft = mf.Match as FuncTerm;
-                    Id id = mf.Binding as Id;
-                    string idName = (id == null)? "_AUTOID_" + ((Id)ft.Function).Name + ft.GetHashCode() : id.Name; 
-                    IdTypeMap.Add(idName, (ft.Function as Id).Name);
-                    TraverseFuncTerm(idName, ft);
+                    // Add model facts to its own domain store.
+                    Model model = n as Model;
+                    string domainName = model.Domain.Name;
+                    DomainStore store;
+                    DomainStores.TryGetValue(domainName, out store);
+
+                    foreach (ModelFact mf in model.Facts)
+                    {
+                        FuncTerm ft = mf.Match as FuncTerm;
+                        Id id = mf.Binding as Id;
+                        string typeName = (ft.Function as Id).Name;
+                        string idName = (id == null) ? "_AUTOID_" + ((Id)ft.Function).Name + ft.GetHashCode() : id.Name;
+                        store.AddModel(idName, typeName);
+                        
+                        TraverseFuncTerm(idName, ft, store);
+                    }
                 }
             );
+            
         }
 
-        public void HandleUnionType(Union union, string typename)
+        public void HandleUnionType(Union union, string typename, DomainStore store)
         {
-            typeSet.Add(typename);
-            List<string> subTypes = new List<string>();
+            store.AddType(typename);
+            // List<string> subTypes = new List<string>();
             foreach (var element in union.Children)
             {
                 if (element.NodeKind == NodeKind.Id)
                 {
-                    subTypes.Add((element as Id).Name);
+                    //subTypes.Add((element as Id).Name);
+                    store.AddUnionSubType(typename, (element as Id).Name);
                 }
                 else if (element.NodeKind == NodeKind.Enum)
                 {
                     // Automatically generate a new union type for eumeration containing Cnst in string format.
                     string autoEnumType = "AUTO_ENUM_TYPE_" + element.GetHashCode();
-                    subTypes.Add(autoEnumType);
-                    typeSet.Add(autoEnumType);
-                    List<String> enumComponents = new List<string>();
+                    //subTypes.Add(autoEnumType);
+                    store.AddUnionSubType(typename, autoEnumType);
+                    store.AddType(autoEnumType);
+                    
                     foreach (Cnst cnst in element.Children)
                     {
                         if (cnst.CnstKind == CnstKind.String)
                         {
-                            enumComponents.Add(cnst.GetStringValue());
+                            store.AddUnionSubType(autoEnumType, cnst.GetStringValue());
                         }
                         else if (cnst.CnstKind == CnstKind.Numeric)
                         {
-                            enumComponents.Add(cnst.GetNumericValue().ToString());
+                            store.AddUnionSubType(autoEnumType, cnst.GetNumericValue().ToString());
                         }
                     }
-                    UnionTypeMap.Add(autoEnumType, enumComponents);
+                    // UnionTypeMap.Add(autoEnumType, enumComponents);
                 }
             }
-            UnionTypeMap.Add(typename, subTypes);
+            //UnionTypeMap.Add(typename, subTypes);
         }
 
-        // Check if a duplicate exists in all existing models of same type.
-        public bool CheckDuplicate(string type, List<string> args)
+        // Check if a duplicate exists in all existing models of same type, args is a list of value for creating new model facts.
+        public bool CheckDuplicate(string type, List<string> args, DomainStore store)
         {
             bool isDuplicate = false;
             // Find all FuncTerm with same type.
             List<string> ids = new List<string>();
-            foreach (string id in IdTypeMap.Keys)
+            foreach (string id in store.GetAllModels())
             {
-                if (IdTypeMap[id] == type) ids.Add(id);
+                if (store.GetModelType(id) == type) ids.Add(id);
             }
 
-            List<string> argTypes = TypeArgsMap[type];
+            List<string> argTypes = store.GetArgTypes(type); 
             foreach (string id in ids)
             {
                 bool isSame = true;
-                List<string> args2 = FuncTermArgsMap[id];
+                List<string> args2 = store.GetArgModels(id);  
                 for (int i=0; i<argTypes.Count(); i++)
                 {
                     if (argTypes[i] != "Integer" && argTypes[i] != "String")
                     {
-                        if (!CheckFuncTermEquality(args[i], args2[i])) isSame = false;
+                        if (!CheckFuncTermEquality(args[i], args2[i], store)) isSame = false;
                     }
                     else
                     {
@@ -217,25 +230,25 @@
         }
 
         // Recursively check if the FuncTerm already exists.
-        public bool CheckFuncTermEquality(string idx, string idy)
+        public bool CheckFuncTermEquality(string idx, string idy, DomainStore store)
         {
             bool isEqual = true;
             // FuncTerms belong to different types.
-            if (IdTypeMap[idx] != IdTypeMap[idy])
+            if(store.GetModelType(idx) != store.GetModelType(idy))
             {
                 return false;
             }
             else
             {
-                string type = IdTypeMap[idx];
-                List<string> argTypes = TypeArgsMap[type];
-                List<string> xargs = FuncTermArgsMap[idx];
-                List<string> yargs = FuncTermArgsMap[idy];
+                string type = store.GetModelType(idx);
+                List<string> argTypes = store.GetArgTypes(type);
+                List<string> xargs = store.GetArgModels(idx);
+                List<string> yargs = store.GetArgModels(idy);  
                 for (int i=0; i<xargs.Count(); i++)
                 {
                     if (argTypes[i] != "Integer" && argTypes[i] != "String")
                     {
-                        if (!CheckFuncTermEquality(xargs[i], yargs[i]))
+                        if (!CheckFuncTermEquality(xargs[i], yargs[i], store))
                         {
                             return false;
                         }
@@ -250,10 +263,10 @@
         }
 
         // Recursively find all FuncTerms inside FuncTerm and convert all values to string without any type information.
-        private void TraverseFuncTerm(string id, FuncTerm ft)
+        private void TraverseFuncTerm(string id, FuncTerm ft, DomainStore store)
         {
             // Argument list only contains Ids of FuncTerm or converted string of Cnst (String or Numeric).
-            List<string> args = new List<string>(); 
+            //List<string> args = new List<string>(); 
             for (int i = 0; i < ft.Args.Count(); i++)
             {
                 if (ft.Args.ElementAt(i).NodeKind == NodeKind.Cnst)
@@ -261,17 +274,20 @@
                     Cnst cnst = (Cnst)ft.Args.ElementAt(i);
                     if (cnst.CnstKind == CnstKind.Numeric)
                     {
-                        args.Add(cnst.GetNumericValue().ToString());
+                        store.AddModelArg(id, cnst.GetNumericValue().ToString());
+                        //args.Add(cnst.GetNumericValue().ToString());
                     }
                     else if(cnst.CnstKind == CnstKind.String)
                     {
-                        args.Add(cnst.GetStringValue());
+                        store.AddModelArg(id, cnst.GetStringValue());
+                        //args.Add(cnst.GetStringValue());
                     }
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.Id)
                 {
                     Id argId = (Id)ft.Args.ElementAt(i);
-                    args.Add(argId.Name);
+                    store.AddModelArg(id, argId.Name);
+                    //args.Add(argId.Name);
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.FuncTerm)
                 {
@@ -279,13 +295,14 @@
                     FuncTerm term = (FuncTerm)ft.Args.ElementAt(i);
                     string type = ((Id)term.Function).Name;
                     string idName = "_AUTOID_" + type + term.GetHashCode();
-                    TraverseFuncTerm(idName, term);
-                    args.Add(idName);
-                    IdTypeMap.Add(idName, (term.Function as Id).Name);
+                    TraverseFuncTerm(idName, term, store);
+                    //args.Add(idName);
+                    store.AddModelArg(id, idName);
+                    store.AddModel(idName, (term.Function as Id).Name);
                 }
             }
 
-            FuncTermArgsMap.Add(id, args);
+            //FuncTermArgsMap.Add(id, args);
         }
 
         // Merge all results from disjoint groups together
@@ -315,8 +332,10 @@
             return finalResult;
         }
 
-        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, LabelMap labelMap, string funcName, List<Dictionary<string, string>> finalResult)
+        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, DomainStore store, LabelMap labelMap, string funcName, List<Dictionary<string, string>> finalResult)
         {
+            string domainName = store.DomainName;
+
             // Update new generated models into FuncTermArgsMap and IdTypeMap mappings
             foreach (Dictionary<string, string> dict in finalResult)
             {
@@ -332,14 +351,14 @@
                 }
 
                 // Only add it to database when it is not a duplicate in existing models.
-                if (!CheckDuplicate(typeName, args))
+                if (!CheckDuplicate(typeName, args, store))
                 {
-                    IdTypeMap.Add(idName, funcName);
+                    store.AddModel(idName, funcName);
 
                     // Add a new model fact with unique ID.
-                    executor.AddModelVertex(idName);
-                    executor.AddProperty("id", idName, "type", typeName);
-                    executor.connectFuncTermToType(idName, typeName);
+                    executor.AddModelVertex(idName, domainName);
+                    executor.AddProperty("id", idName, "type", typeName, domainName);
+                    executor.connectFuncTermToType(idName, typeName, domainName);
 
                     for (int i = 0; i < labels.Count(); i++)
                     {
@@ -348,20 +367,25 @@
                         if (labelType == "Integer")
                         {
                             string integerString = dict[label];
-                            executor.connectFuncTermToCnst(idName, integerString, "ARG_" + i);
+                            executor.connectFuncTermToCnst(idName, integerString, "ARG_" + i, domainName);
                         }
                         else if (labelType == "String")
                         {
                             string s = dict[label];
-                            executor.connectFuncTermToCnst(idName, s, "ARG_" + i);
+                            executor.connectFuncTermToCnst(idName, s, "ARG_" + i, domainName);
                         }
                         else
                         {
                             string idy = dict[label];
-                            executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i);
+                            executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i, domainName);
                         }
                     }
-                    FuncTermArgsMap.Add(idName, args);
+
+                    //FuncTermArgsMap.Add(idName, args);
+                    foreach (string arg in args)
+                    {
+                        store.AddModelArg(idName, arg);
+                    }
                 }
             }           
         }
@@ -411,17 +435,17 @@
             
         }
 
-        public void ExecuteRule(Rule r, GraphDBExecutor executor)
+        public void ExecuteRule(Rule r, GraphDBExecutor executor, DomainStore store)
         {
             Body body = r.Bodies.ElementAt(0);
-            var labelMap = new LabelMap(body, IdTypeMap, TypeArgsMap);
+            var labelMap = new LabelMap(body, store);
             var allLabels = labelMap.GetAllLabels();
             List<HashSet<string>> groups = labelMap.GetSCCGroups(allLabels);
             List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
 
             foreach (HashSet<string> group in groups)
             {
-                List<Dictionary<string, string>> result = GetQueryResult(executor, body, group.ToList());
+                List<Dictionary<string, string>> result = GetQueryResult(executor, store, body, group.ToList());
 
                 if (!SatisfyCountConstraint(labelMap, result.Count(), group))
                 {   
@@ -443,39 +467,42 @@
                     Id id = node as Id;
                     labels.Add(id.Name);
                 }
-                AddNonRecursiveModel(executor, labels, labelMap, funcName, finalResult);
+                AddNonRecursiveModel(executor, labels, store, labelMap, funcName, finalResult);
             }
         }
 
-        // Get the type of argument corresponding to unique Id given Id and index.
-        public string GetArgType(string id, int index)
+        public void ExportAllDomainToGraphDB(GraphDBExecutor executor)
         {
-            string idType;
-            IdTypeMap.TryGetValue(id, out idType);
-            List<string> argTypes;
-            TypeArgsMap.TryGetValue(idType, out argTypes);
-            return argTypes[index];
+            foreach (DomainStore store in DomainStores.Values)
+            {
+                ExportOneDomainToGraphDB(executor, store);
+            }
         }
 
-        public void ExportToGraphDB(GraphDBExecutor executor)
-        {          
+        public void ExportOneDomainToGraphDB(GraphDBExecutor executor, DomainStore store)
+        {
+            string domainName = store.DomainName;
+            executor.AddDomainVertex(domainName);
+
             // Insert all types as meta-level vertex in GraphDB.
-            foreach (string type in typeSet)
+            foreach (string type in store.typeSet)
             {
-                executor.AddTypeVertex(type);
+                executor.AddTypeVertex(type, domainName);
+                // Connect type to its scope node.
+                executor.connectTypeToDomain(type, domainName);
             }
 
             // Insert edge to denote the relation between union type and its subtypes or cnst and enum.
-            foreach (KeyValuePair<String, List<string>> entry in UnionTypeMap)
+            foreach (KeyValuePair<String, List<string>> entry in store.UnionTypeMap)
             {
                 string unionType = entry.Key;
                 // Test if it is a union type or enum type
                 string sample = entry.Value.ElementAt(0);
-                if (typeSet.Contains(sample))
+                if (store.typeSet.Contains(sample))
                 {
                     foreach (string subtype in entry.Value)
                     {
-                        executor.connectSubtypeToType(subtype, unionType);
+                        executor.connectSubtypeToType(subtype, unionType, domainName);
                     }
                 }
                 else
@@ -488,93 +515,85 @@
                         bool isRational = Rational.TryParseDecimal(cnstString, out r);
                         if (isRational)
                         {
-                            cnstSet.Add(cnstString);
-                            executor.AddCnstVertex(cnstString, false);
-                            executor.AddProperty("value", cnstString, "type", "Integer");
+                            store.AddCnst(cnstString);
+                            executor.AddCnstVertex(cnstString, false, domainName);
+                            executor.AddProperty("value", cnstString, "type", "Integer", domainName);
                         }
                         else
                         {
-                            cnstSet.Add(cnstString);
-                            executor.AddCnstVertex(cnstString, true);
-                            executor.AddProperty("value", cnstString, "type", "String");
+                            store.AddCnst(cnstString);
+                            executor.AddCnstVertex(cnstString, true, domainName);
+                            executor.AddProperty("value", cnstString, "type", "String", domainName);
                         }
                     }
                 }
             }
 
             // Insert all models(FuncTerm) to GraphDB and connect them to their type nodes.
-            foreach (KeyValuePair<String, String> entry in IdTypeMap)
+            foreach (KeyValuePair<String, String> entry in store.IdTypeMap)
             {
-                executor.AddModelVertex(entry.Key);
+                executor.AddModelVertex(entry.Key, domainName);
                 string typeName = entry.Value;
-                executor.AddProperty("id", entry.Key, "type", typeName);
-                executor.connectFuncTermToType(entry.Key, typeName);
+                executor.AddProperty("id", entry.Key, "type", typeName, domainName);
+                executor.connectFuncTermToType(entry.Key, typeName, domainName);
             }
 
             // Insert edge to denote the relation between FuncTerm and its arguments.
-            foreach (KeyValuePair<String, List<string>> entry in FuncTermArgsMap)
+            foreach (KeyValuePair<String, List<string>> entry in store.FuncTermArgsMap)
             {
                 string idx = entry.Key;
                 for (int i = 0; i < entry.Value.Count(); i++)
                 {
                     string obj = entry.Value[i];
-                    string argType = GetArgType(idx, i);
+                    string argType = store.GetArgTypeByIDIndex(idx, i);
                     // Integer is interpreted as string and may need some fixes later.
                     if (argType == "Integer")
                     {
                         string value = obj;
-                        if (!cnstSet.Contains(value))
+                        if (!store.cnstSet.Contains(value))
                         {
-                            cnstSet.Add(value);
-                            executor.AddCnstVertex(value, false);
-                            executor.AddProperty("value", value, "type", "Integer");
-                            executor.connectCnstToType(value, false);
+                            store.AddCnst(value);
+                            executor.AddCnstVertex(value, false, domainName);
+                            executor.AddProperty("value", value, "type", "Integer", domainName);
+                            executor.connectCnstToType(value, false, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i);
+                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i, domainName);
                     }
                     else if (argType == "String")
                     {
                         string value = obj;
-                        if (!cnstSet.Contains(value))
+                        if (!store.cnstSet.Contains(value))
                         {
-                            cnstSet.Add(value);
-                            executor.AddCnstVertex(value, true);
-                            executor.AddProperty("value", value, "type", "String");
-                            executor.connectCnstToType(value, true);
+                            store.AddCnst(value);
+                            executor.AddCnstVertex(value, true, domainName);
+                            executor.AddProperty("value", value, "type", "String", domainName);
+                            executor.connectCnstToType(value, true, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i);
+                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i, domainName);
                     }
                     else
                     {
                         string idy = obj;
-                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i);
+                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i, domainName);
                     }
                 }
             }
 
             // Execute rules defined in domain in sequence.
             // Execute rules defined in the domain to add more model facts into database.
-            List<Rule> rules = new List<Rule>();
-            Program.FindAll(
-                new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Rule) },
-                (path, n) =>
-                {
-                    Rule r = n as Rule;
-                    rules.Add(r);
-                }
-            );
+            List<Rule> rules = store.Rules;
 
             // Execute rules in loop until no more new model fact is added into database.
             int oldModelCount = -1;
-            int newModelCount = IdTypeMap.Count();
+            int newModelCount = store.IdTypeMap.Count();
             while (newModelCount != oldModelCount)
             {
                 oldModelCount = newModelCount;
                 foreach(var rule in rules)
                 {
-                    ExecuteRule(rule, executor);
+                    ExecuteRule(rule, executor, store);
                 }
-                newModelCount = IdTypeMap.Count();
+                newModelCount = store.IdTypeMap.Count();
             }
         }
 
@@ -606,9 +625,10 @@
         }      
 
         // outputLabels must be all related without disjoint labels.
-        public List<Dictionary<string, string>> GetQueryResult(GraphDBExecutor executor, Body body, List<string> outputLabels)
+        public List<Dictionary<string, string>> GetQueryResult(GraphDBExecutor executor, DomainStore store, Body body, List<string> outputLabels)
         {
-            LabelMap labelMap = new LabelMap(body, IdTypeMap, TypeArgsMap);
+            LabelMap labelMap = new LabelMap(body, store);
+            string domainName = store.DomainName;
 
             // outputLabels should be a subset of all relatedLabels.
             // Take the first label and the rest should be included in relatedLabels.
@@ -631,8 +651,8 @@
                     string type = labelInfo.Type;
                     int index = labelInfo.ArgIndex;
                     int count = labelInfo.InstanceIndex;
-                    List<String> argList;
-                    TypeArgsMap.TryGetValue(type, out argList);
+                    List<String> argList = store.GetArgTypes(type);
+                    //TypeArgsMap.TryGetValue(type, out argList);
                     string argType = argList.ElementAt(index);
 
                     string instanceLabel = labelMap.GetBindingLabel(type, count);
@@ -645,16 +665,16 @@
                         relatedBindingLabels.Add(instanceLabel);
                     }
 
-                    var t1 = __.As(relatedLabel).In("ARG_" + index).Has("type", type).As(instanceLabel);
-                    var t2 = __.As(instanceLabel).Has("type", type).Out("ARG_" + index).As(relatedLabel);
+                    var t1 = __.As(relatedLabel).In("ARG_" + index).Has("type", type).Has("domain", domainName).As(instanceLabel);
+                    var t2 = __.As(instanceLabel).Has("type", type).Has("domain", domainName).Out("ARG_" + index).As(relatedLabel);
 
                     if (!labelSet.Contains(instanceLabel))
                     {
                         labelSet.Add(instanceLabel);
                     }
 
-                    string commandString = string.Format(@"__.As({0}).In('ARG_{1}').Has('type', {2}).As('{4}');
-__.As('{4}').Has('type', {2}).Out('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel);
+                    string commandString = string.Format(@"__.As({0}).In('ARG_{1}').Has('type', {2}).Has('domain', {5}).As('{4}');
+__.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel, domainName);
                     Console.WriteLine(commandString);
 
                     subTraversals.Add(t1);
