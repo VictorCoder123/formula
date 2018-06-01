@@ -1,50 +1,36 @@
-﻿domain Model
+﻿domain TestModel
 {
 	A ::= new (id: Integer).
 	B ::= new (id: String).
 	C ::= new (x: Integer, y: Integer).
-	D ::= new (x: Integer, y: String).
-	E ::= new (x: String, y: String).
-	F ::= new (x: A, y: B).
-	G ::= new (x: C, y: E).
-	H ::= new (x: A, y: A).
-	I ::= new (x: Integer, y: A + Integer + {"hello", "world"}).
-	J ::= A + B + C + D + E.
+	D ::= new (x: String, y: A + Integer + {"hello", "world"}).
+	E ::= A + B + C + D.
 
+}
+
+domain TestModelPlus extends TestModel
+{
 	C(a, c) :- C(a, b), C(b, c).
 }
 
-model m of Model
+model m of TestModel
 {
-	A(0).
-	a1 is A(1).
-	a2 is A(2).
-	a3 is A(3).
-	a4 is A(4).
-	a5 is A(5).
+	A(1).
+	a1 is A(2).
+	b1 is B("world").
+	c1 is C(1, 2).
+	c2 is C(2, 3).
+}
 
-	b1 is B("hello").
-
+model mplus of TestModelPlus
+{	
+	A(1).
+	a1 is A(2).
+	b1 is B("world").
 	c1 is C(1, 2).
 	c2 is C(2, 3).
 	c3 is C(3, 4).
-
-	d1 is D(2, "hi").
-
-	e1 is E("wxyz", "zyxw").
-	e2 is E("same", "same").
-
-	f1 is F(a1, b1).
-	f2 is F(A(12), B("world")).
-
-	g1 is G(c1, e1).
-
-	h1 is H(a1, a1).
-	h2 is H(a2, a3).
-	h3 is H(a3, a4).
-	h4 is H(a4, a5).
-
-	i1 is I(1, a1).
-	i2 is I(2, 3).
-	i3 is I(2, "hello").
+	d1 is D("hello", "world"). 
+	d2 is D("hello", 1). 
+	d3 is D("hello", a1). 
 }
