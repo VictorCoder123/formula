@@ -29,6 +29,8 @@
         // Map type name to a list of type in arguments.
         public Dictionary<String, List<String>> TypeArgsMap { get; }
 
+        public Dictionary<String, List<String>> TypeArgsLabelMap { get; }
+
         // Map Union type name to a list of its subtypes including Enum type.
         public Dictionary<String, List<String>> UnionTypeMap { get; }
 
@@ -45,6 +47,7 @@
             IdTypeMap = new Dictionary<string, string>();
             FuncTermArgsMap = new Dictionary<String, List<string>>();
             TypeArgsMap = new Dictionary<string, List<string>>();
+            TypeArgsLabelMap = new Dictionary<string, List<string>>();
             UnionTypeMap = new Dictionary<string, List<string>>();
             typeSet = new HashSet<string>();
             cnstSet = new HashSet<string>();
@@ -82,6 +85,12 @@
             {
                 List<string> list = new List<string>(store.TypeArgsMap[key]);
                 TypeArgsMap.Add(key, list);
+            }
+
+            foreach (var key in store.TypeArgsLabelMap.Keys)
+            {
+                List<string> list = new List<string>(store.TypeArgsLabelMap[key]);
+                TypeArgsLabelMap.Add(key, list);
             }
         }
 
@@ -176,6 +185,23 @@
                 List<string> list;
                 TypeArgsMap.TryGetValue(type, out list);
                 list.Add(arg);
+            }
+        }
+
+        // Add the label of argument into map.
+        public void AddTypeArgLabel(string type, string label)
+        {
+            if (!TypeArgsLabelMap.ContainsKey(type))
+            {
+                List<string> list = new List<string>();
+                list.Add(label);
+                TypeArgsLabelMap.Add(type, list);
+            }
+            else
+            {
+                List<string> list;
+                TypeArgsLabelMap.TryGetValue(type, out list);
+                list.Add(label);
             }
         }
 

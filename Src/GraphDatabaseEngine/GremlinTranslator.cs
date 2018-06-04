@@ -88,9 +88,19 @@
                         {
                             ConDecl conDecl = decl as ConDecl;
                             store.AddType(conDecl.Name);
-                            for (int i = 0; i < conDecl.Children.Count(); i++)
+                            foreach(Field field in conDecl.Fields)
                             {
-                                Field field = (Field)conDecl.Children.ElementAt(i);
+                                // Add the label of each argument into store.
+                                string argLabel = field.Name;
+                                if (argLabel != null)
+                                {
+                                    store.AddTypeArgLabel(conDecl.Name, argLabel);
+                                }
+                                else
+                                {
+                                    store.AddTypeArgLabel(conDecl.Name, null);
+                                }
+
                                 if (field.Type.NodeKind == NodeKind.Id)
                                 {
                                     string argType = ((Id)field.Type).Name;
@@ -127,8 +137,6 @@
                             store.CopyDomainStore(inheritedDomainStore);
                         }
                     }
-
-                    //foreach(var Model in domain.)
 
                     // Each domain has its own store for all domain and model information.
                     DomainStores.Add(store.DomainName, store);
@@ -176,7 +184,6 @@
                 {
                     // Automatically generate a new union type for eumeration containing Cnst in string format.
                     string autoEnumType = "AUTO_ENUM_TYPE_" + element.GetHashCode();
-                    //subTypes.Add(autoEnumType);
                     store.AddUnionSubType(typename, autoEnumType);
                     store.AddType(autoEnumType);
                     
@@ -191,10 +198,8 @@
                             store.AddUnionSubType(autoEnumType, cnst.GetNumericValue().ToString());
                         }
                     }
-                    // UnionTypeMap.Add(autoEnumType, enumComponents);
                 }
             }
-            //UnionTypeMap.Add(typename, subTypes);
         }
 
         // Check if a duplicate exists in all existing models of same type, args is a list of value for creating new model facts.
@@ -266,7 +271,6 @@
         private void TraverseFuncTerm(string id, FuncTerm ft, DomainStore store)
         {
             // Argument list only contains Ids of FuncTerm or converted string of Cnst (String or Numeric).
-            //List<string> args = new List<string>(); 
             for (int i = 0; i < ft.Args.Count(); i++)
             {
                 if (ft.Args.ElementAt(i).NodeKind == NodeKind.Cnst)
@@ -275,19 +279,16 @@
                     if (cnst.CnstKind == CnstKind.Numeric)
                     {
                         store.AddModelArg(id, cnst.GetNumericValue().ToString());
-                        //args.Add(cnst.GetNumericValue().ToString());
                     }
                     else if(cnst.CnstKind == CnstKind.String)
                     {
                         store.AddModelArg(id, cnst.GetStringValue());
-                        //args.Add(cnst.GetStringValue());
                     }
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.Id)
                 {
                     Id argId = (Id)ft.Args.ElementAt(i);
                     store.AddModelArg(id, argId.Name);
-                    //args.Add(argId.Name);
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.FuncTerm)
                 {
@@ -296,13 +297,10 @@
                     string type = ((Id)term.Function).Name;
                     string idName = "_AUTOID_" + type + term.GetHashCode();
                     TraverseFuncTerm(idName, term, store);
-                    //args.Add(idName);
                     store.AddModelArg(id, idName);
                     store.AddModel(idName, (term.Function as Id).Name);
                 }
             }
-
-            //FuncTermArgsMap.Add(id, args);
         }
 
         // Merge all results from disjoint groups together
@@ -377,7 +375,8 @@
                         else
                         {
                             string idy = dict[label];
-                            executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i, domainName);
+                            string argLabel = store.TypeArgsLabelMap[funcName].ElementAt(i);
+                            executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i, argLabel, domainName);
                         }
                     }
 
@@ -471,6 +470,7 @@
             }
         }
 
+        // Export all domain definition and models into Graph Database.
         public void ExportAllDomainToGraphDB(GraphDBExecutor executor)
         {
             foreach (DomainStore store in DomainStores.Values)
@@ -538,6 +538,20 @@
                 executor.connectFuncTermToType(entry.Key, typeName, domainName);
             }
 
+            // Insert edge to denote the argument relationship between type and arg type
+            // If argument label exists, add this label as an edge.
+            foreach (KeyValuePair<string, List<string>> entry in store.TypeArgsMap)
+            {
+                string type = entry.Key;
+                for (int i = 0; i < entry.Value.Count(); i++)
+                {
+                    List<string> list = store.TypeArgsLabelMap[type];
+                    string argType = entry.Value.ElementAt(i);
+                    string label = list.ElementAt(i);
+                    executor.connectTypeToArgType(type, argType, "ARG_" + i, label, domainName);
+                }
+            }
+
             // Insert edge to denote the relation between FuncTerm and its arguments.
             foreach (KeyValuePair<String, List<string>> entry in store.FuncTermArgsMap)
             {
@@ -574,7 +588,9 @@
                     else
                     {
                         string idy = obj;
-                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i, domainName);
+                        string idxType = store.GetModelType(idx);
+                        string label = store.TypeArgsLabelMap[idxType].ElementAt(i); // label can be null.
+                        executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i, label, domainName);
                     }
                 }
             }

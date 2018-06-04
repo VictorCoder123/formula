@@ -16,12 +16,8 @@
     {
         private Dictionary<String, List<LabelInfo>> LabelInfoMap { get; }
         private Dictionary<String, LabelInfo> BindingMap { get; }
+        private DomainStore Store { get; }
         public List<OperatorInfo> OperatorList { get; }
-
-        // Map Id of ModelFact to FuncTerm with original Id or auto-generated Id.
-        public Dictionary<String, String> IdTypeMap { get; }
-        // Map type name to a list of type in arguments.
-        public Dictionary<String, List<String>> TypeArgsMap { get; }
 
         public class OperatorInfo
         {
@@ -61,14 +57,13 @@
             }
         }
 
-        public LabelMap(Body body, Dictionary<String, String> idTypeMap, Dictionary<String, List<String>> typeArgsMap)
+        public LabelMap(Body body, DomainStore store)
         {
             LabelInfoMap = new Dictionary<string, List<LabelInfo>>();
             BindingMap = new Dictionary<string, LabelInfo>();
             OperatorList = new List<OperatorInfo>();
 
-            IdTypeMap = idTypeMap;
-            TypeArgsMap = typeArgsMap;
+            Store = store;
 
             CreateLabelMap(body);
         }
@@ -107,8 +102,7 @@
             LabelInfoMap.TryGetValue(label, out labelInfoList);
             string labelFuncType = labelInfoList[0].Type;
             int labelIndex = labelInfoList[0].ArgIndex;
-            List<String> argTypeList;
-            TypeArgsMap.TryGetValue(labelFuncType, out argTypeList);
+            List<String> argTypeList = Store.GetArgTypes(labelFuncType);
             string labelType = argTypeList[labelIndex];
             return labelType;
         }
@@ -125,10 +119,9 @@
         // Get the type of argument corresponding to unique Id given Id and index.
         public string GetArgType(string id, int index)
         {
-            string idType;
-            IdTypeMap.TryGetValue(id, out idType);
-            List<string> argTypes;
-            TypeArgsMap.TryGetValue(idType, out argTypes);
+            string idType = Store.GetModelType(id);
+            List<string> argTypes = Store.GetArgTypes(idType);
+            //TypeArgsMap.TryGetValue(idType, out argTypes);
             return argTypes[index];
         }
 

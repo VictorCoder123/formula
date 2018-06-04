@@ -149,10 +149,24 @@
             }
         }
 
+        // Connect type to argument type by auto-generated label (ARG_X) and user defined argument label. (type -> arg type)
+        public void connectTypeToArgType(string type, string argType, string edgeType, string edgeLabel, string domain)
+        {
+            AddEdge("meta", type, "meta", argType, edgeType, domain);
+            if (edgeLabel != null)
+            {
+                AddEdge("meta", type, "meta", argType, edgeLabel, domain);
+            }
+        }
+
         // Connect parent FuncTerm to argument FuncTerm. (idx -> idy)
-        public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType, string domain)
+        public void connectFuncTermToFuncTerm(string idx, string idy, string edgeType, string edgeLabel, string domain)
         {
             AddEdge("id", idx, "id", idy, edgeType, domain);
+            if (edgeLabel != null)
+            {
+                AddEdge("id", idx, "id", idy, edgeLabel, domain);
+            }
         }
 
         // Connect FuncTerm to type (id -> type)
