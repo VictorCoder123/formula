@@ -389,6 +389,7 @@
             }           
         }
 
+        // Return true only if all related labels does not exceed the constraints set in OperatorInfo list (label, operator, count)
         public bool SatisfyCountConstraint(LabelMap labelMap, int resultCount, HashSet<string> relatedLabels)
         {
             // Add count constraints of labels like count({s | ...}) > 1
@@ -402,7 +403,11 @@
 
                     if (relatedLabel == label)
                     {
-                        if (op.Operator == RelKind.Gt)
+                        if (op.Operator == RelKind.No)
+                        {
+                            if (resultCount > 0) return false;
+                        }
+                        else if (op.Operator == RelKind.Gt)
                         {
                             if (resultCount <= num) return false;
                         }
@@ -659,42 +664,44 @@
 
             foreach (string relatedLabel in relatedLabels)
             {
-                List<LabelMap.LabelInfo> labelInfoList;
-                labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
-
-                foreach (LabelMap.LabelInfo labelInfo in labelInfoList)
+                if (!labelMap.IsBindingLabel(relatedLabel))
                 {
-                    string type = labelInfo.Type;
-                    int index = labelInfo.ArgIndex;
-                    int count = labelInfo.InstanceIndex;
-                    List<String> argList = store.GetArgTypes(type);
-                    //TypeArgsMap.TryGetValue(type, out argList);
-                    string argType = argList.ElementAt(index);
+                    List<LabelMap.LabelInfo> labelInfoList;
+                    labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
 
-                    string instanceLabel = labelMap.GetBindingLabel(type, count);
-                    if (instanceLabel == null)
+                    foreach (LabelMap.LabelInfo labelInfo in labelInfoList)
                     {
-                        instanceLabel = count + "_instance_of_" + type;
-                    }
-                    else
-                    {
-                        relatedBindingLabels.Add(instanceLabel);
-                    }
+                        string type = labelInfo.Type;
+                        int index = labelInfo.ArgIndex;
+                        int count = labelInfo.InstanceIndex;
+                        List<String> argList = store.GetArgTypes(type);
+                        string argType = argList.ElementAt(index);
 
-                    var t1 = __.As(relatedLabel).In("ARG_" + index).Has("type", type).Has("domain", domainName).As(instanceLabel);
-                    var t2 = __.As(instanceLabel).Has("type", type).Has("domain", domainName).Out("ARG_" + index).As(relatedLabel);
+                        string instanceLabel = labelMap.GetBindingLabel(type, count);
+                        if (instanceLabel == null)
+                        {
+                            instanceLabel = count + "_instance_of_" + type;
+                        }
+                        else
+                        {
+                            relatedBindingLabels.Add(instanceLabel);
+                        }
 
-                    if (!labelSet.Contains(instanceLabel))
-                    {
-                        labelSet.Add(instanceLabel);
-                    }
+                        var t1 = __.As(relatedLabel).In("ARG_" + index).Has("type", type).Has("domain", domainName).As(instanceLabel);
+                        var t2 = __.As(instanceLabel).Has("type", type).Has("domain", domainName).Out("ARG_" + index).As(relatedLabel);
 
-                    string commandString = string.Format(@"__.As({0}).In('ARG_{1}').Has('type', {2}).Has('domain', {5}).As('{4}');
+                        if (!labelSet.Contains(instanceLabel))
+                        {
+                            labelSet.Add(instanceLabel);
+                        }
+
+                        string commandString = string.Format(@"__.As({0}).In('ARG_{1}').Has('type', {2}).Has('domain', {5}).As('{4}');
 __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relatedLabel, index, type, count, instanceLabel, domainName);
-                    Console.WriteLine(commandString);
+                        Console.WriteLine(commandString);
 
-                    subTraversals.Add(t1);
-                    subTraversals.Add(t2);
+                        subTraversals.Add(t1);
+                        subTraversals.Add(t2);
+                    }
                 }
             }
 

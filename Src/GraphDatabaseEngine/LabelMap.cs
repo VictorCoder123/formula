@@ -68,6 +68,12 @@
             CreateLabelMap(body);
         }
 
+        public bool IsBindingLabel(string label)
+        {
+            if (BindingMap.ContainsKey(label)) return true;
+            else return false;
+        }
+
         // Get binding label given type and the index of instance.
         public string GetBindingLabel(string type, int instanceIndex)
         {
@@ -85,7 +91,20 @@
 
         public List<string> GetAllLabels()
         {
-            return LabelInfoMap.Keys.ToList();
+            List<string> labels = LabelInfoMap.Keys.ToList();
+            List<string> bindingLabels = BindingMap.Keys.ToList();
+            List<string> allLabels = new List<string>();
+            foreach (var label in labels)
+            {
+                allLabels.Add(label);
+            }
+
+            foreach (var label in bindingLabels)
+            {
+                allLabels.Add(label);
+            }
+
+            return allLabels;
         }
 
         // Infer the type of label in FORMULA rule from label map.
@@ -133,9 +152,13 @@
         }
 
         public void CreateLabelMap(Body body)
-        {        
+        {
             Dictionary<String, int> typeCounts = new Dictionary<string, int>();
+            CreateLabelMap(body, typeCounts);
+        }
 
+        public void CreateLabelMap(Body body, Dictionary<String, int> typeCounts)
+        {        
             foreach (var element in body.Children)
             {
                 if (element.NodeKind == NodeKind.Find)
@@ -198,7 +221,7 @@
                         OperatorInfo info = new OperatorInfo(relConstr.Op, label, value);
                         OperatorList.Add(info);
                         // Recursively Add labels inside count({s | ...}) into label map.
-                        CreateLabelMap(comprBody);
+                        CreateLabelMap(comprBody, typeCounts);
                     }
                 }               
             }
@@ -216,28 +239,67 @@
         public HashSet<String> FindSCCLabels(HashSet<String> labels, string label)
         {
             labels.Add(label);
-            List<LabelInfo> labelInfoList;
-            LabelInfoMap.TryGetValue(label, out labelInfoList);
 
-            // srcTuples represents all occurance of target label.
-            foreach (var labelInfo in labelInfoList)
+            // Check if the label is an argument label or binding label for instance.
+            if (BindingMap.Keys.Contains(label))
             {
-                string typeName = labelInfo.Type;
-                int count = labelInfo.InstanceIndex;
-
-                // Traverse all labels to find matches for target label.
-                foreach (var dstLabel in LabelInfoMap.Keys)
+                LabelInfo bindingLabelInfo = BindingMap[label];
+                foreach (var key in LabelInfoMap.Keys)
                 {
-                    if (!labels.Contains(dstLabel))
+                    if (!labels.Contains(key))
                     {
-                        List<LabelInfo> dstTuples;
-                        LabelInfoMap.TryGetValue(dstLabel, out dstTuples);
-                        foreach (var dstTuple in dstTuples)
+                        var list = LabelInfoMap[key];
+                        foreach (LabelInfo info in list)
                         {
-                            if (dstTuple.Type == typeName && dstTuple.InstanceIndex == count)
+                            // Add all labels related to the instance label into SCCLabel set.
+                            if (info.Type == bindingLabelInfo.Type && info.InstanceIndex == bindingLabelInfo.InstanceIndex)
                             {
-                                labels.Add(dstLabel);
-                                FindSCCLabels(labels, dstLabel);
+                                labels.Add(key);
+                                FindSCCLabels(labels, key);
+                            }
+                        }
+                    }   
+                }
+            }
+            else
+            {
+                List<LabelInfo> labelInfoList;
+                LabelInfoMap.TryGetValue(label, out labelInfoList);
+
+                // srcTuples represents all occurance of target label.
+                foreach (var labelInfo in labelInfoList)
+                {
+                    string typeName = labelInfo.Type;
+                    int count = labelInfo.InstanceIndex;
+
+                    // Traverse all labels to find matches for target label.
+                    foreach (var dstLabel in LabelInfoMap.Keys)
+                    {
+                        if (!labels.Contains(dstLabel))
+                        {
+                            List<LabelInfo> dstTuples;
+                            LabelInfoMap.TryGetValue(dstLabel, out dstTuples);
+                            foreach (var dstTuple in dstTuples)
+                            {
+                                if (dstTuple.Type == typeName && dstTuple.InstanceIndex == count)
+                                {
+                                    labels.Add(dstLabel);
+                                    FindSCCLabels(labels, dstLabel);
+                                }
+                            }
+                        }
+                    }
+
+                    // Don't forget to check binding label map.
+                    foreach (string bindingLabel in BindingMap.Keys)
+                    {
+                        if (!labels.Contains(bindingLabel))
+                        {
+                            LabelInfo bindingLabelInfo = BindingMap[bindingLabel];
+                            if (labelInfo.Type == bindingLabelInfo.Type && labelInfo.InstanceIndex == bindingLabelInfo.InstanceIndex)
+                            {
+                                labels.Add(bindingLabel);
+                                FindSCCLabels(labels, bindingLabel);
                             }
                         }
                     }
