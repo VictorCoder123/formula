@@ -212,10 +212,20 @@
                         OperatorInfo info = new OperatorInfo(relConstr.Op, (relConstr.Arg1 as Id).Name, value);
                         OperatorList.Add(info);
                     }
-                    else if (relConstr.Arg1.NodeKind == NodeKind.FuncTerm)
+                    else
                     {
-                        FuncTerm ft = relConstr.Arg1 as FuncTerm;
-                        Compr compr = ft.Args.ElementAt(0) as Compr;
+                        Compr compr;
+                        // count({s | s...}) > 0
+                        if (relConstr.Arg1.NodeKind == NodeKind.FuncTerm)
+                        {
+                            FuncTerm ft = relConstr.Arg1 as FuncTerm;
+                            compr = ft.Args.ElementAt(0) as Compr;
+                        }
+                        else // no {s | s...}
+                        {
+                            compr = relConstr.Arg1 as Compr;
+                        }
+                        
                         string label = (compr.Heads.ElementAt(0) as Id).Name;
                         Body comprBody = (compr.Bodies.ElementAt(0) as Body);
                         OperatorInfo info = new OperatorInfo(relConstr.Op, label, value);

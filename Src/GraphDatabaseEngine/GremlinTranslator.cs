@@ -309,6 +309,11 @@
             List<Dictionary<string, string>> finalResult = new List<Dictionary<string, string>>();
             foreach (List<Dictionary<string, string>> result in resultGroups)
             {
+                if (result.Count() == 0) // no {s | s...}, do not add empty result.
+                {
+                    continue;
+                }
+
                 if (finalResult.Count() == 0)
                 {
                     finalResult = result;
@@ -399,7 +404,15 @@
                 {
                     string label = op.Label;
                     Cnst cnst = op.Cnst;
-                    int num = (int)cnst.GetNumericValue().Numerator;
+                    int num;
+                    if (cnst == null)
+                    {
+                        num = 0;
+                    }
+                    else
+                    {
+                        num = (int)cnst.GetNumericValue().Numerator;
+                    }
 
                     if (relatedLabel == label)
                     {
