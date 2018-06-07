@@ -1,6 +1,6 @@
 ﻿domain TestModel
 {
-	A ::= new (id: Integer).
+	A ::= new (Integer).
 	B ::= new (id: String).
 	C ::= new (x: Integer, y: Integer).
 	D ::= new (x: String, y: A + Integer + {"hello", "world"}).
@@ -10,7 +10,7 @@
 
 domain TestModelPlus extends TestModel
 {
-	C(a, c) :- C(a, b), C(b, c).
+	C(a, c) :- C(a, b), C(b, c), c = 3.
 }
 
 model m of TestModel
@@ -26,7 +26,7 @@ model mplus of TestModelPlus
 {	
 	A(1).
 	a1 is A(2).
-	b1 is B("world").
+	
 	c1 is C(1, 2).
 	c2 is C(2, 3).
 	c3 is C(3, 4).
