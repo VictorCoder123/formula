@@ -304,10 +304,10 @@
         }
 
         // Merge all results from disjoint groups together
-        public List<Dictionary<string, string>> MergeResultGroups(List<List<Dictionary<string, string>>> resultGroups)
+        public List<Dictionary<string, object>> MergeResultGroups(List<List<Dictionary<string, object>>> resultGroups)
         {
-            List<Dictionary<string, string>> finalResult = new List<Dictionary<string, string>>();
-            foreach (List<Dictionary<string, string>> result in resultGroups)
+            List<Dictionary<string, object>> finalResult = new List<Dictionary<string, object>>();
+            foreach (List<Dictionary<string, object>> result in resultGroups)
             {
                 if (result.Count() == 0) // no {s | s...}, do not add empty result.
                 {
@@ -320,7 +320,7 @@
                 }
                 else
                 {
-                    List<Dictionary<string, string>> newfinalResult = new List<Dictionary<string, string>>();
+                    List<Dictionary<string, object>> newfinalResult = new List<Dictionary<string, object>>();
                     foreach (var dict1 in finalResult)
                     {
                         foreach (var dict2 in result)
@@ -335,12 +335,12 @@
             return finalResult;
         }
 
-        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, DomainStore store, LabelMap labelMap, string funcName, List<Dictionary<string, string>> finalResult)
+        public void AddNonRecursiveModel(GraphDBExecutor executor, List<string> labels, DomainStore store, LabelMap labelMap, string funcName, List<Dictionary<string, object>> finalResult)
         {
             string domainName = store.DomainName;
 
             // Update new generated models into FuncTermArgsMap and IdTypeMap mappings
-            foreach (Dictionary<string, string> dict in finalResult)
+            foreach (Dictionary<string, object> dict in finalResult)
             {
                 string idName = "_AUTOID_" + funcName + dict.GetHashCode();
                 string typeName = funcName;
@@ -350,7 +350,7 @@
                 for (int i = 0; i < labels.Count(); i++)
                 {
                     string label = labels[i];
-                    args.Add(dict[label]);
+                    args.Add(dict[label].ToString());
                 }
 
                 // Only add it to database when it is not a duplicate in existing models.
@@ -369,17 +369,17 @@
                         string labelType = labelMap.GetLabelType(label);
                         if (labelType == "Integer")
                         {
-                            string integerString = dict[label];
-                            executor.connectFuncTermToCnst(idName, integerString, "ARG_" + i, domainName);
+                            int integer = (int)dict[label];
+                            executor.connectFuncTermToCnst(idName, integer, "ARG_" + i, domainName);
                         }
                         else if (labelType == "String")
                         {
-                            string s = dict[label];
-                            executor.connectFuncTermToCnst(idName, s, "ARG_" + i, domainName);
+                            string s = dict[label] as String;
+                            executor.connectFuncTermToCnst(idName, s, true, "ARG_" + i, domainName);
                         }
                         else
                         {
-                            string idy = dict[label];
+                            string idy = dict[label] as String;
                             string argLabel = store.TypeArgsLabelMap[funcName].ElementAt(i);
                             executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i, argLabel, domainName);
                         }
@@ -402,6 +402,11 @@
             {
                 foreach (var op in labelMap.OperatorList)
                 {
+                    if (!op.isCountComparison)
+                    {
+                        continue;
+                    }
+
                     string label = op.Label;
                     Cnst cnst = op.Cnst;
                     int num;
@@ -458,11 +463,11 @@
             var labelMap = new LabelMap(body, store);
             var allLabels = labelMap.GetAllLabels();
             List<HashSet<string>> groups = labelMap.GetSCCGroups(allLabels);
-            List<List<Dictionary<string, string>>> resultGroups = new List<List<Dictionary<string, string>>>();
+            List<List<Dictionary<string, object>>> resultGroups = new List<List<Dictionary<string, object>>>();
 
             foreach (HashSet<string> group in groups)
             {
-                List<Dictionary<string, string>> result = GetQueryResult(executor, store, body, group.ToList());
+                List<Dictionary<string, object>> result = GetQueryResult(executor, store, body, group.ToList());
 
                 if (!SatisfyCountConstraint(labelMap, result.Count(), group))
                 {   
@@ -473,7 +478,7 @@
                 resultGroups.Add(result);
             }
 
-            List<Dictionary<string, string>> finalResult = MergeResultGroups(resultGroups);
+            List<Dictionary<string, object>> finalResult = MergeResultGroups(resultGroups);
 
             foreach (FuncTerm ft in r.Heads)
             {
@@ -589,7 +594,7 @@
                             executor.AddProperty("value", value, "type", "Integer", domainName);
                             executor.connectCnstToType(value, false, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i, domainName);
+                        executor.connectFuncTermToCnst(idx, value, false, "ARG_" + i, domainName);
                     }
                     else if (argType == "String")
                     {
@@ -601,7 +606,7 @@
                             executor.AddProperty("value", value, "type", "String", domainName);
                             executor.connectCnstToType(value, true, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, "ARG_" + i, domainName);
+                        executor.connectFuncTermToCnst(idx, value, true, "ARG_" + i, domainName);
                     }
                     else
                     {
@@ -659,7 +664,7 @@
         }      
 
         // outputLabels must be all related without disjoint labels.
-        public List<Dictionary<string, string>> GetQueryResult(GraphDBExecutor executor, DomainStore store, Body body, List<string> outputLabels)
+        public List<Dictionary<string, object>> GetQueryResult(GraphDBExecutor executor, DomainStore store, Body body, List<string> outputLabels)
         {
             LabelMap labelMap = new LabelMap(body, store);
             string domainName = store.DomainName;
@@ -718,6 +723,72 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 }
             }
 
+            foreach (var op in labelMap.OperatorList)
+            {
+                if (op.isValueComparison)
+                {
+                    string label = op.Label;
+                    Cnst cnst = op.Cnst;
+                    int num;
+                    string str;
+                    string commandString = "";
+                    ITraversal t = null;
+
+                    // __.As(label) should be an instance of built-in type like string and integer.
+                    if (cnst.CnstKind == CnstKind.String)
+                    {
+                        str = cnst.GetStringValue();
+                        if (op.Operator == RelKind.Eq)
+                        {
+                            t = __.As(label).Values<string>("value").Is(P.Eq(str));
+                            commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Eq({1}));", label, str);
+                        }
+                        else if(op.Operator == RelKind.Neq)
+                        {
+                            t = __.As(label).Values<string>("value").Is(P.Neq(str));
+                            commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Neq({1}));", label, str);
+                        }
+                    }
+                    else if(cnst.CnstKind == CnstKind.Numeric)
+                    {
+                        num = (int)cnst.GetNumericValue().Numerator;
+                        if (op.Operator == RelKind.Gt)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Gt(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Gt({1}));", label, num);
+                        }
+                        else if (op.Operator == RelKind.Lt)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Lt(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Lt({1}));", label, num);
+                        }
+                        else if (op.Operator == RelKind.Ge)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Gte(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Ge({1}));", label, num);
+                        }
+                        else if (op.Operator == RelKind.Le)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Lte(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Le({1}));", label, num);
+                        }
+                        else if (op.Operator == RelKind.Eq)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Eq(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Eq({1}));", label, num);
+                        }
+                        else // (op.Operator == RelKind.Neq)
+                        {
+                            t = __.As(label).Values<int>("value").Is(P.Neq(num));
+                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Neq({1}));", label, num);
+                        }
+                    }
+
+                    Console.WriteLine(commandString);
+                    if (t != null) subTraversals.Add(t);
+                }
+            }
+
             // Add label bindings like c1 is C(a, b) into outputLabels to be selected.
             foreach (string instanceLabel in relatedBindingLabels)
             {
@@ -756,7 +827,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
            
             var matchResult = traversal.Match<Vertex>(subTraversals.ToArray());
             int labelCount = outputLabels.Count();
-            IList<IDictionary<string, string>> list = new List<IDictionary<string, string>>();
+            IList<IDictionary<string, object>> list = new List<IDictionary<string, object>>();
 
             // Print out all selected labels in Select step
             string selectedLabelString = "Select(";
@@ -780,10 +851,10 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
             {
                 string label = labelMap.GetLabelType(outputLabels[0]);
                 string prop = (label == "String" || label == "Integer") ? "value" : "id";
-                var stringList = matchResult.Select<string>(outputLabels[0]).By(prop).ToList();
+                var stringList = matchResult.Select<object>(outputLabels[0]).By(prop).ToList();
                 foreach (string str in stringList)
                 {
-                    var dict = new Dictionary<string, string>();
+                    var dict = new Dictionary<string, object>();
                     dict.Add(label, str);
                     list.Add(dict);
                 }
@@ -794,7 +865,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 string label2 = labelMap.GetLabelType(outputLabels[1]);
                 string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
                 string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
-                list = matchResult.Select<string>(outputLabels[0], outputLabels[1]).By(prop1).By(prop2).ToList();
+                list = matchResult.Select<object>(outputLabels[0], outputLabels[1]).By(prop1).By(prop2).ToList();
             }
             else if (labelCount > 2)
             {
@@ -802,7 +873,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 string label2 = labelMap.GetLabelType(outputLabels[1]);
                 string prop1 = (label1 == "String" || label1 == "Integer") ? "value" : "id";
                 string prop2 = (label2 == "String" || label2 == "Integer") ? "value" : "id";
-                var middleResult = matchResult.Select<string>(outputLabels[0], outputLabels[1], outputLabels.GetRange(2, labelCount-2).ToArray()).By(prop1).By(prop2);
+                var middleResult = matchResult.Select<object>(outputLabels[0], outputLabels[1], outputLabels.GetRange(2, labelCount-2).ToArray()).By(prop1).By(prop2);
                 for (int i = 2; i < labelCount; i++)
                 {
                     string label = labelMap.GetLabelType(outputLabels[i]);
@@ -814,10 +885,10 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
 
             Console.WriteLine("\n");
 
-            List<Dictionary<string, string>> convertedList = new List<Dictionary<string, string>>();
+            List<Dictionary<string, object>> convertedList = new List<Dictionary<string, object>>();
             foreach (var dict in list)
             {
-                convertedList.Add((Dictionary<string, string>) dict);
+                convertedList.Add((Dictionary<string, object>) dict);
             }
 
             return convertedList;

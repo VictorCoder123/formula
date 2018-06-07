@@ -10,6 +10,12 @@
     using Gremlin.Net.Driver;
     using Gremlin.Net.Driver.Remote;
 
+    using Microsoft.Formula.API;
+    using Microsoft.Formula.API.ASTQueries;
+    using Microsoft.Formula.API.Nodes;
+    using Microsoft.Formula.Common;
+    using Microsoft.Formula.API.Generators;
+
     public class GraphDBExecutor
     {
         // Default URL and port to connect GraphDB.
@@ -32,6 +38,14 @@
         public GraphTraversalSource NewTraversal(Graph graph)
         {
             return graph.Traversal().WithRemote(new DriverRemoteConnection(new GremlinClient(new GremlinServer(address, port))));
+        }
+
+        public int ToInteger(string str)
+        {
+            Rational r;
+            Rational.TryParseDecimal(str, out r);
+            int num = (int)r.Numerator;
+            return num;
         }
 
         // Add node with single property defined in key/value pair.
@@ -81,10 +95,19 @@
             AddVertex("id", id, "domain", domain);
         }
 
-        public void AddCnstVertex(string value, bool isString, string domain)
+        public void AddCnstVertex(string valueString, bool isString, string domain)
         {
             var source = NewTraversal(graph).AddV();
-            source = source.Property("value", value);
+            if (isString)
+            {
+                source = source.Property("value", valueString);
+            }
+            else
+            {
+                int num = ToInteger(valueString);
+                source = source.Property("value", num);
+            }
+
             source = source.Property("isString", isString);
             source = source.Property("domain", domain);
             source.ToList();
@@ -105,16 +128,23 @@
         }
 
         // Connect Cnst to FuncTerm as argument. (FuncTerm -> cnst)
-        public void connectFuncTermToCnst(string id, object cnst, string edgeType, string domain)
+        public void connectFuncTermToCnst(string id, string cnstString, bool isString, string edgeType, string domain)
         {
-            if (cnst.GetType() == typeof(String))
+            if (isString)
             {
-                AddEdge("id", id, "value", (String)cnst, edgeType, domain);  
+                AddEdge("id", id, "value", cnstString, edgeType, domain);  
             }
-            else if (cnst.GetType() == typeof(int))
+            else
             {
-                AddEdge("id", id, "value", (int)cnst, edgeType, domain);
+                int num = ToInteger(cnstString);
+                AddEdge("id", id, "value", num, edgeType, domain);
             }
+        }
+
+        // Connect Cnst to FuncTerm when numeric value is known.
+        public void connectFuncTermToCnst(string id, int value, string edgeType, string domain)
+        {
+            AddEdge("id", id, "value", value, edgeType, domain);
         }
 
         // Connect type to its scope node. (type -> domain)
@@ -125,9 +155,17 @@
         }
 
         // Connect Cnst to enum type (cnst -> enum type)
-        public void connectCnstToEnumType(string value, string enumType, string domain)
+        public void connectCnstToEnumType(string value, bool isString, string enumType, string domain)
         {
-            AddEdge("value", value, "meta", enumType, "enum", domain);
+            if (isString)
+            {
+                AddEdge("value", value, "meta", enumType, "enum", domain);
+            }
+            else
+            {
+                int num = ToInteger(value);
+                AddEdge("value", num, "meta", enumType, "enum", domain);
+            }
         }
 
         // Connect sub-type to its union type. (subtype -> type), the label name of edge is "type".
@@ -145,7 +183,8 @@
             }
             else
             {
-                AddEdge("value", value, "meta", "Integer", "type", domain);
+                int num = ToInteger(value);
+                AddEdge("value", num, "meta", "Integer", "type", domain);
             }
         }
 

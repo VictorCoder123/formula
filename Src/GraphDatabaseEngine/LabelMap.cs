@@ -21,15 +21,28 @@
 
         public class OperatorInfo
         {
+            public bool isCountComparison;
+            public bool isValueComparison;
             public RelKind Operator;
             public String Label;
             public Cnst Cnst;
 
-            public OperatorInfo(RelKind op, string label, Cnst cnst)
+            public OperatorInfo(RelKind op, string label, Cnst cnst, bool isCount)
             {
                 Operator = op;
                 Label = label;
                 Cnst = cnst;
+
+                if (isCount)
+                {
+                    isCountComparison = true;
+                    isValueComparison = false;
+                }
+                else
+                {
+                    isCountComparison = false;
+                    isValueComparison = true;
+                }
             }
         }
 
@@ -207,9 +220,10 @@
                 {
                     RelConstr relConstr = element as RelConstr;
                     Cnst value = relConstr.Arg2 as Cnst;
+                    // Compare value like high != 2 in rules if label "high" represent a Integer.
                     if (relConstr.Arg1.NodeKind == NodeKind.Id)
                     {
-                        OperatorInfo info = new OperatorInfo(relConstr.Op, (relConstr.Arg1 as Id).Name, value);
+                        OperatorInfo info = new OperatorInfo(relConstr.Op, (relConstr.Arg1 as Id).Name, value, false);
                         OperatorList.Add(info);
                     }
                     else
@@ -228,7 +242,7 @@
                         
                         string label = (compr.Heads.ElementAt(0) as Id).Name;
                         Body comprBody = (compr.Bodies.ElementAt(0) as Body);
-                        OperatorInfo info = new OperatorInfo(relConstr.Op, label, value);
+                        OperatorInfo info = new OperatorInfo(relConstr.Op, label, value, true);
                         OperatorList.Add(info);
                         // Recursively Add labels inside count({s | ...}) into label map.
                         CreateLabelMap(comprBody, typeCounts);
