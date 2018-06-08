@@ -17,10 +17,7 @@
     using Gremlin.Net.Driver.Remote;
 
     // TODO: Add more edges for Edge label like a1.x = 1
-    // TODO: Distinguish integer from string in graph database
-    // TODO: Negation
     // TODO: type constraints like  a is A
-    // TODO: built-in operator like ==, !=, <=, >=, no
     // TODO: Handle transitive closure with Gremlin Loop Matching Pattern.
     public class GremlinTranslator
     {
