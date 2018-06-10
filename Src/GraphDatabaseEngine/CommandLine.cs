@@ -15,7 +15,7 @@
         public static void Main(string[] args)
         {
             GraphDBExecutor executor = new GraphDBExecutor("localhost", 8182);
-            GremlinTranslator translator = new GremlinTranslator("test2.4ml");
+            GremlinTranslator translator = new GremlinTranslator("test.4ml");
             translator.ExportAllDomainToGraphDB(executor);
             string query = "C(a, b)";
             Body body = translator.ParseQueryString(query); 

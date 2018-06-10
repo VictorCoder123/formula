@@ -113,6 +113,13 @@
             source.ToList();
         }
 
+        // Add two boolean nodes to graph database.
+        public void AddBooleanVertexes(string domain)
+        {
+            AddVertex("bool", true, "domain", domain);
+            AddVertex("bool", false, "domain", domain);
+        }
+
         // Find nodes with specific property and connect them as an edge with dst points to src. (src -> dst)
         public void AddEdge(string srcKey, object srcValue, string dstKey, object dstValue, string edgeType, string domain)
         {
@@ -125,6 +132,12 @@
         public void AddEdge(KeyValuePair<String, object> srcProp, KeyValuePair<String, object> dstProp, string edgeType, string domain)
         {
             AddEdge(srcProp.Key, srcProp.Value, dstProp.Key, dstProp.Value, edgeType, domain);
+        }
+
+        // Connect FuncTerm to boolean node if argument is of boolean type.
+        public void connectFuncTermToBoolean(string id, bool boolValue, string edgeType, string domain)
+        {
+            AddEdge("id", id, "bool", boolValue, edgeType, domain);
         }
 
         // Connect Cnst to FuncTerm as argument. (FuncTerm -> cnst)
@@ -166,6 +179,13 @@
                 int num = ToInteger(value);
                 AddEdge("value", num, "meta", enumType, "enum", domain);
             }
+        }
+
+        // Connect two boolean nodes to their type node.
+        public void connectBooleansToType(string domain)
+        {
+            AddEdge("bool", true, "meta", "Boolean", "type", domain);
+            AddEdge("bool", false, "meta", "Boolean", "type", domain);
         }
 
         // Connect sub-type to its union type. (subtype -> type), the label name of edge is "type".

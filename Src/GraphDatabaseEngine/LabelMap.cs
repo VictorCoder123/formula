@@ -18,6 +18,7 @@
         private Dictionary<String, LabelInfo> BindingMap { get; }
         private DomainStore Store { get; }
         public List<OperatorInfo> OperatorList { get; }
+        public Dictionary<String, List<string>> LabelFragmentsMap { get; }
 
         public class OperatorInfo
         {
@@ -75,6 +76,7 @@
             LabelInfoMap = new Dictionary<string, List<LabelInfo>>();
             BindingMap = new Dictionary<string, LabelInfo>();
             OperatorList = new List<OperatorInfo>();
+            LabelFragmentsMap = new Dictionary<string, List<string>>();
 
             Store = store;
 
@@ -85,6 +87,44 @@
         {
             if (BindingMap.ContainsKey(label)) return true;
             else return false;
+        }
+
+        public bool HasFragment(string label)
+        {
+            if (!LabelFragmentsMap.ContainsKey(label))
+            {
+                return false;
+            }
+
+            List<string> list = LabelFragmentsMap[label];
+            if (list.Count() > 1)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        // Get all related labels like "a.b.c" related to label "a".
+        public List<string> GetRelatedLabelsWithFragments(string label)
+        {
+            List<string> relatedLabels = new List<string>();
+            if (!LabelFragmentsMap.ContainsKey(label))
+            {
+                return relatedLabels;
+            }
+
+            foreach (string key in LabelFragmentsMap.Keys)
+            {
+                var fragments = LabelFragmentsMap[key];
+                if (fragments.Count() > 1 && fragments.ElementAt(0) == label)
+                {
+                    relatedLabels.Add(key);
+                }
+            }
+            return relatedLabels;
         }
 
         // Get binding label given type and the index of instance.
@@ -199,6 +239,13 @@
                     {
                         Id id = (Id)ft.Args.ElementAt(i);
                         string label = id.Name;
+
+                        // Add fragment list into map for labels like "a.b.property".
+                        if (!LabelFragmentsMap.ContainsKey(label))
+                        {
+                            LabelFragmentsMap.Add(label, id.Fragments.ToList());
+                        }
+
                         if (!LabelInfoMap.ContainsKey(label))
                         {
                             List<LabelInfo> list = new List<LabelInfo>();
@@ -214,6 +261,7 @@
                     {
                         LabelInfo info = new LabelInfo(typeName, currentCount);
                         BindingMap.Add(binding.Name, info);
+                        LabelFragmentsMap.Add(binding.Name, binding.Fragments.ToList());
                     }
                 }
                 else if (element.NodeKind == NodeKind.RelConstr)
@@ -225,6 +273,11 @@
                     {
                         OperatorInfo info = new OperatorInfo(relConstr.Op, (relConstr.Arg1 as Id).Name, value, false);
                         OperatorList.Add(info);
+                        Id id = relConstr.Arg1 as Id;
+                        if (!LabelFragmentsMap.ContainsKey(id.Name))
+                        {
+                            LabelFragmentsMap.Add(id.Name, id.Fragments.ToList());
+                        }
                     }
                     else
                     {
@@ -264,9 +317,18 @@
         {
             labels.Add(label);
 
+            // For label cc.x, add "cc" into label list.
+            if (HasFragment(label))
+            {
+                List<string> fragments = LabelFragmentsMap[label];
+                labels.Add(fragments.ElementAt(0));
+                FindSCCLabels(labels, fragments.ElementAt(0));
+            }
+
             // Check if the label is an argument label or binding label for instance.
             if (BindingMap.Keys.Contains(label))
             {
+                // Find all argument labels belonged to a binding label like cc is C(b, c).
                 LabelInfo bindingLabelInfo = BindingMap[label];
                 foreach (var key in LabelInfoMap.Keys)
                 {
@@ -284,6 +346,7 @@
                         }
                     }   
                 }
+
             }
             else
             {

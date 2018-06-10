@@ -40,6 +40,8 @@
         // A set of Constants of either String or Integer type.
         public HashSet<string> cnstSet { get; }
 
+        public Dictionary<String, Boolean> BooleanMap { get; }
+
         public DomainStore(string domainName)
         {
             DomainName = domainName;
@@ -51,10 +53,14 @@
             UnionTypeMap = new Dictionary<string, List<string>>();
             typeSet = new HashSet<string>();
             cnstSet = new HashSet<string>();
+            BooleanMap = new Dictionary<string, bool>();
 
             // Add built-in types Integer and String type.
             AddType("Integer");
             AddType("String");
+            AddType("Boolean");
+            AddType("Natural");
+            AddType("Real");
         }
 
         // Copy domain information to domain store with ModRef.
@@ -138,6 +144,11 @@
         public void AddRule(Rule rule)
         {
             Rules.Add(rule);
+        }
+
+        public void AddBooleanVariable(string id, bool value)
+        {
+            BooleanMap.Add(id, value);
         }
 
         public void AddModel(string id, string type)

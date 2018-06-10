@@ -284,6 +284,7 @@
                 }
                 else if (ft.Args.ElementAt(i).NodeKind == NodeKind.Id)
                 {
+                    // Id can be either id of FuncTerm or Boolean value (id, TRUE, FALSE)
                     Id argId = (Id)ft.Args.ElementAt(i);
                     store.AddModelArg(id, argId.Name);
                 }
@@ -476,17 +477,34 @@
             }
 
             List<Dictionary<string, object>> finalResult = MergeResultGroups(resultGroups);
-
-            foreach (FuncTerm ft in r.Heads)
+            // The head only has one boolean variable.
+            if (r.Heads.ElementAt(0).NodeKind == NodeKind.Id)
             {
-                string funcName = (ft.Function as Id).Name;
-                List<string> labels = new List<string>();
-                foreach (var node in ft.Args)
+                Id id = r.Heads.ElementAt(0) as Id;
+                string boolLabel = id.Name;
+                // The boolean variables is not pushed into graph database.
+                if (finalResult.Count() > 0)
                 {
-                    Id id = node as Id;
-                    labels.Add(id.Name);
+                    store.AddBooleanVariable(boolLabel, true);
                 }
-                AddNonRecursiveModel(executor, labels, store, labelMap, funcName, finalResult);
+                else
+                {
+                    store.AddBooleanVariable(boolLabel, false);
+                }
+            }
+            else // The head contains several FuncTerms.
+            {
+                foreach (FuncTerm ft in r.Heads)
+                {
+                    string funcName = (ft.Function as Id).Name;
+                    List<string> labels = new List<string>();
+                    foreach (var node in ft.Args)
+                    {
+                        Id id = node as Id;
+                        labels.Add(id.Name);
+                    }
+                    AddNonRecursiveModel(executor, labels, store, labelMap, funcName, finalResult);
+                }
             }
         }
 
@@ -511,6 +529,10 @@
                 // Connect type to its scope node.
                 executor.connectTypeToDomain(type, domainName);
             }
+
+            // Add boolean nodes and connect them to Boolean type.
+            executor.AddBooleanVertexes(domainName);
+            executor.connectBooleansToType(domainName);
 
             // Insert edge to denote the relation between union type and its subtypes or cnst and enum.
             foreach (KeyValuePair<String, List<string>> entry in store.UnionTypeMap)
@@ -580,7 +602,7 @@
                 {
                     string obj = entry.Value[i];
                     string argType = store.GetArgTypeByIDIndex(idx, i);
-                    // Integer is interpreted as string and may need some fixes later.
+                    
                     if (argType == "Integer")
                     {
                         string value = obj;
@@ -604,6 +626,18 @@
                             executor.connectCnstToType(value, true, domainName);
                         }
                         executor.connectFuncTermToCnst(idx, value, true, "ARG_" + i, domainName);
+                    }
+                    else if (argType == "Boolean")
+                    {
+                        string boolValue = obj;
+                        if (boolValue == "TRUE")
+                        {
+                            executor.connectFuncTermToBoolean(idx, true, "ARG_" + i, domainName);
+                        }
+                        else if (boolValue == "FALSE")
+                        {
+                            executor.connectFuncTermToBoolean(idx, false, "ARG_" + i, domainName);
+                        }
                     }
                     else
                     {
@@ -658,7 +692,40 @@
             var bodies = ((Rule)rule.Node).Bodies;
             var body = bodies.ElementAt(0);
             return body;
-        }      
+        }
+
+        public GraphTraversal<object, Vertex> CreateSubTraversalForFragmentedLabel(string label, LabelMap labelMap)
+        {
+            List<string> fragments = labelMap.LabelFragmentsMap[label];
+            var t = __.As(fragments.ElementAt(0)).Out(fragments.ElementAt(1));
+            string commandString = string.Format(@"__.As('{0}').Out('{1}')", fragments.ElementAt(0), fragments.ElementAt(1));
+            for (int i = 2; i < fragments.Count(); i++)
+            {
+                t = t.Out(fragments.ElementAt(i));
+                commandString += ".Out('" + fragments.ElementAt(i) + "')";
+            }
+            t.As(label);
+            commandString += string.Format(@".As('{0}');", label);
+            Console.WriteLine(commandString);
+            return t;
+        }
+
+        public GraphTraversal<object, Vertex> CreateSubTraversalForFragmentedLabelReverse(string label, LabelMap labelMap)
+        {
+            List<string> fragments = labelMap.LabelFragmentsMap[label];
+            int count = fragments.Count();
+            var t = __.As(label).In(fragments.ElementAt(count - 1));
+            string commandString = string.Format(@"__.As('{0}').In('{1}')", label, fragments.ElementAt(count - 1));
+            for (int i = count - 2; i > 0; i--)
+            {
+                t.In(fragments.ElementAt(i));
+                commandString += ".In('" + fragments.ElementAt(i) + "')";
+            }
+            t.As(fragments.ElementAt(0));
+            commandString += string.Format(@".As('{0}');", fragments.ElementAt(0));
+            Console.WriteLine(commandString);
+            return t;
+        }
 
         // outputLabels must be all related without disjoint labels.
         public List<Dictionary<string, object>> GetQueryResult(GraphDBExecutor executor, DomainStore store, Body body, List<string> outputLabels)
@@ -716,6 +783,19 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
 
                         subTraversals.Add(t1);
                         subTraversals.Add(t2);
+                    }
+                }
+                else
+                {
+                    // Handle label with fragments like a.b.c related to "a" in rules.
+                    List<string> relatedLabelsWithFragments = labelMap.GetRelatedLabelsWithFragments(relatedLabel);
+                    foreach (string relatedLabelWithFragments in relatedLabelsWithFragments)
+                    {
+                        var t = CreateSubTraversalForFragmentedLabel(relatedLabelWithFragments, labelMap);
+                        subTraversals.Add(t);
+
+                        var tr = CreateSubTraversalForFragmentedLabelReverse(relatedLabelWithFragments, labelMap);
+                        subTraversals.Add(t);
                     }
                 }
             }
