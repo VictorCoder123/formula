@@ -365,20 +365,21 @@
                     {
                         string label = labels[i];
                         string labelType = labelMap.GetLabelType(label);
+                        string argLabel = store.TypeArgsLabelMap[funcName].ElementAt(i);
+
                         if (labelType == "Integer")
                         {
                             int integer = (int)dict[label];
-                            executor.connectFuncTermToCnst(idName, integer, "ARG_" + i, domainName);
+                            executor.connectFuncTermToCnst(idName, integer, "ARG_" + i, argLabel, domainName);
                         }
                         else if (labelType == "String")
                         {
                             string s = dict[label] as String;
-                            executor.connectFuncTermToCnst(idName, s, true, "ARG_" + i, domainName);
+                            executor.connectFuncTermToCnst(idName, s, true, "ARG_" + i, argLabel, domainName);
                         }
                         else
                         {
                             string idy = dict[label] as String;
-                            string argLabel = store.TypeArgsLabelMap[funcName].ElementAt(i);
                             executor.connectFuncTermToFuncTerm(idName, idy, "ARG_" + i, argLabel, domainName);
                         }
                     }
@@ -602,7 +603,9 @@
                 {
                     string obj = entry.Value[i];
                     string argType = store.GetArgTypeByIDIndex(idx, i);
-                    
+                    string idxType = store.GetModelType(idx);
+                    string argLabel = store.TypeArgsLabelMap[idxType].ElementAt(i);
+
                     if (argType == "Integer")
                     {
                         string value = obj;
@@ -613,7 +616,7 @@
                             executor.AddProperty("value", value, "type", "Integer", domainName);
                             executor.connectCnstToType(value, false, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, false, "ARG_" + i, domainName);
+                        executor.connectFuncTermToCnst(idx, value, false, "ARG_" + i, argLabel, domainName);
                     }
                     else if (argType == "String")
                     {
@@ -625,7 +628,7 @@
                             executor.AddProperty("value", value, "type", "String", domainName);
                             executor.connectCnstToType(value, true, domainName);
                         }
-                        executor.connectFuncTermToCnst(idx, value, true, "ARG_" + i, domainName);
+                        executor.connectFuncTermToCnst(idx, value, true, "ARG_" + i, argLabel, domainName);
                     }
                     else if (argType == "Boolean")
                     {
@@ -642,7 +645,6 @@
                     else
                     {
                         string idy = obj;
-                        string idxType = store.GetModelType(idx);
                         string label = store.TypeArgsLabelMap[idxType].ElementAt(i); // label can be null.
                         executor.connectFuncTermToFuncTerm(idx, idy, "ARG_" + i, label, domainName);
                     }
@@ -795,7 +797,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                         subTraversals.Add(t);
 
                         var tr = CreateSubTraversalForFragmentedLabelReverse(relatedLabelWithFragments, labelMap);
-                        subTraversals.Add(t);
+                        subTraversals.Add(tr);
                     }
                 }
             }

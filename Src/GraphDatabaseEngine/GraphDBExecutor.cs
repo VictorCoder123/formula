@@ -141,23 +141,35 @@
         }
 
         // Connect Cnst to FuncTerm as argument. (FuncTerm -> cnst)
-        public void connectFuncTermToCnst(string id, string cnstString, bool isString, string edgeType, string domain)
+        public void connectFuncTermToCnst(string id, string cnstString, bool isString, string edgeType, string edgeLabel, string domain)
         {
             if (isString)
             {
-                AddEdge("id", id, "value", cnstString, edgeType, domain);  
+                AddEdge("id", id, "value", cnstString, edgeType, domain);
+                if (edgeLabel != null)
+                {
+                    AddEdge("id", id, "value", cnstString, edgeLabel, domain);
+                }
             }
             else
             {
                 int num = ToInteger(cnstString);
                 AddEdge("id", id, "value", num, edgeType, domain);
+                if (edgeLabel != null)
+                {
+                    AddEdge("id", id, "value", num, edgeLabel, domain);
+                }
             }
         }
 
         // Connect Cnst to FuncTerm when numeric value is known.
-        public void connectFuncTermToCnst(string id, int value, string edgeType, string domain)
+        public void connectFuncTermToCnst(string id, int value, string edgeType, string edgeLabel, string domain)
         {
             AddEdge("id", id, "value", value, edgeType, domain);
+            if (edgeLabel != null)
+            {
+                AddEdge("id", id, "value", value, edgeLabel, domain);
+            }
         }
 
         // Connect type to its scope node. (type -> domain)
