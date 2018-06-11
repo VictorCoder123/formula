@@ -317,18 +317,31 @@
         {
             labels.Add(label);
 
+            // For label "cc", add all labels like "cc.x" into label list.
+            foreach (string labelWithFragments in LabelFragmentsMap.Keys)
+            {
+                if (!labels.Contains(labelWithFragments) && labelWithFragments.Contains(label))
+                {
+                    labels.Add(labelWithFragments);
+                    FindSCCLabels(labels, labelWithFragments);
+                }
+            }
+
             // For label cc.x, add "cc" into label list.
             if (HasFragment(label))
             {
                 List<string> fragments = LabelFragmentsMap[label];
-                labels.Add(fragments.ElementAt(0));
-                FindSCCLabels(labels, fragments.ElementAt(0));
+                if (!labels.Contains(fragments.ElementAt(0)))
+                {
+                    labels.Add(fragments.ElementAt(0));
+                    FindSCCLabels(labels, fragments.ElementAt(0));
+                }
             }
 
             // Check if the label is an argument label or binding label for instance.
             if (BindingMap.Keys.Contains(label))
             {
-                // Find all argument labels belonged to a binding label like cc is C(b, c).
+                // Find all argument labels belonged to a binding label like cc is C(b, c) and add them into label set.
                 LabelInfo bindingLabelInfo = BindingMap[label];
                 foreach (var key in LabelInfoMap.Keys)
                 {
@@ -350,6 +363,7 @@
             }
             else
             {
+                // Add other labels inside the same constructor.
                 List<LabelInfo> labelInfoList;
                 LabelInfoMap.TryGetValue(label, out labelInfoList);
 
@@ -377,7 +391,7 @@
                         }
                     }
 
-                    // Don't forget to check binding label map.
+                    // Don't forget to check binding label map and add binding label.
                     foreach (string bindingLabel in BindingMap.Keys)
                     {
                         if (!labels.Contains(bindingLabel))
