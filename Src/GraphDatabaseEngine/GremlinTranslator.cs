@@ -748,11 +748,10 @@
 
             foreach (string relatedLabel in relatedLabels)
             {
-                if (!labelMap.IsBindingLabel(relatedLabel))
+                // Only choose label that is not binding label and occur in constructors.
+                if (!labelMap.IsBindingLabel(relatedLabel) && labelMap.GetLabelOccuranceInfo(relatedLabel) != null)
                 {
-                    List<LabelMap.LabelInfo> labelInfoList;
-                    labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
-
+                    List<LabelMap.LabelInfo> labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
                     foreach (LabelMap.LabelInfo labelInfo in labelInfoList)
                     {
                         string type = labelInfo.Type;
@@ -789,7 +788,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 }
                 else
                 {
-                    // Handle label with fragments like a.b.c related to "a" in rules.
+                    // Handle label with fragments like a.b.c related to "a" in rules for binding label.
                     List<string> relatedLabelsWithFragments = labelMap.GetRelatedLabelsWithFragments(relatedLabel);
                     foreach (string relatedLabelWithFragments in relatedLabelsWithFragments)
                     {
@@ -884,8 +883,8 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                     string label2 = relatedLabelList[j];
                     var t = __.Where(label1, P.Neq(label2));
                     string commandString = string.Format(@"__.Where({0}, P.Neq({1});", label1, label2);
-                    Console.WriteLine(commandString);
-                    subTraversals.Add(t);
+                    //Console.WriteLine(commandString);
+                    //subTraversals.Add(t);
                 }
             }
 
