@@ -249,10 +249,21 @@
             {
                 if (element.NodeKind == NodeKind.Find)
                 {
-                    FuncTerm ft = ((Find)element).Match as FuncTerm;
                     Id binding = ((Find)element).Binding;
-                    string typeName = ((Id)ft.Function).Name;
+                    Find find = element as Find;
+                    string typeName;
 
+                    if (find.Match.NodeKind == NodeKind.FuncTerm)
+                    {
+                        FuncTerm ft = find.Match as FuncTerm;
+                        typeName = ((Id)ft.Function).Name;
+                    }
+                    else // if (find.Match.NodeKind == NodeKind.Id)
+                    {
+                        Id id = find.Match as Id;
+                        typeName = id.Name;
+                    }
+                    
                     // Count the occurance of same type name in query.
                     if (!typeCounts.ContainsKey(typeName))
                     {
@@ -265,29 +276,39 @@
                         typeCounts[typeName] = oldCount + 1;
                     }
 
-                    int currentCount;
-                    typeCounts.TryGetValue(typeName, out currentCount);
+                    int currentCount = typeCounts[typeName];
 
-                    for (int i = 0; i < ft.Args.Count(); i++)
+                    if (find.Match.NodeKind == NodeKind.FuncTerm)
                     {
-                        Id id = (Id)ft.Args.ElementAt(i);
-                        string label = id.Name;
-
-                        // Add fragment list into map for labels like "a.b.property".
-                        if (!LabelFragmentsMap.ContainsKey(label))
+                        FuncTerm ft = find.Match as FuncTerm;
+                        for (int i = 0; i < ft.Args.Count(); i++)
                         {
-                            LabelFragmentsMap.Add(label, id.Fragments.ToList());
-                        }
+                            Id id = (Id)ft.Args.ElementAt(i);
+                            string label = id.Name;
 
-                        if (!LabelInfoMap.ContainsKey(label))
-                        {
-                            List<LabelInfo> list = new List<LabelInfo>();
-                            LabelInfoMap.Add(label, list);
+                            // Add fragment list into map for labels like "a.b.property".
+                            if (!LabelFragmentsMap.ContainsKey(label))
+                            {
+                                LabelFragmentsMap.Add(label, id.Fragments.ToList());
+                            }
+
+                            if (!LabelInfoMap.ContainsKey(label))
+                            {
+                                List<LabelInfo> list = new List<LabelInfo>();
+                                LabelInfoMap.Add(label, list);
+                            }
+                            List<LabelInfo> labelInfoList;
+                            LabelInfoMap.TryGetValue(label, out labelInfoList);
+                            LabelInfo info = new LabelInfo(typeName, i, currentCount);
+                            labelInfoList.Add(info);
                         }
-                        List<LabelInfo> labelInfoList;
-                        LabelInfoMap.TryGetValue(label, out labelInfoList);
-                        LabelInfo info = new LabelInfo(typeName, i, currentCount);
-                        labelInfoList.Add(info);
+                    }
+                    else // if (find.Match.NodeKind == NodeKind.Id)
+                    {
+                        Id id = find.Match as Id;
+                        // For labels like cc is C. label info is added to BindingMap below.
+                        // LabelInfo info = new LabelInfo(typeName, currentCount);
+                        // labelInfoList.Add(info);
                     }
 
                     if (binding != null)
