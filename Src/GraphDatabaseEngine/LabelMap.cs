@@ -26,13 +26,16 @@
             public bool isValueComparison;
             public RelKind Operator;
             public String Label;
+            public String Label2;
             public Cnst Cnst;
 
-            public OperatorInfo(RelKind op, string label, Cnst cnst, bool isCount)
+            // The second param can be either Cnst or label. For example, low < 1, low < high.
+            public OperatorInfo(RelKind op, string label, string label2, Cnst cnst, bool isCount)
             {
                 Operator = op;
                 Label = label;
                 Cnst = cnst;
+                Label2 = label2;
 
                 if (isCount)
                 {
@@ -253,11 +256,13 @@
                     Find find = element as Find;
                     string typeName;
 
+                    // Id binds to a FuncTerm
                     if (find.Match.NodeKind == NodeKind.FuncTerm)
                     {
                         FuncTerm ft = find.Match as FuncTerm;
                         typeName = ((Id)ft.Function).Name;
                     }
+                    // Id binds to a Function name.
                     else // if (find.Match.NodeKind == NodeKind.Id)
                     {
                         Id id = find.Match as Id;
@@ -285,6 +290,11 @@
                         {
                             Id id = (Id)ft.Args.ElementAt(i);
                             string label = id.Name;
+
+                            if (label == "_")
+                            {
+                                label = string.Format("AUTO_LABEL_{0}_{1}_{2}", typeName, i, ft.GetHashCode());
+                            }
 
                             // Add fragment list into map for labels like "a.b.property".
                             if (!LabelFragmentsMap.ContainsKey(label))
@@ -321,16 +331,37 @@
                 else if (element.NodeKind == NodeKind.RelConstr)
                 {
                     RelConstr relConstr = element as RelConstr;
-                    Cnst value = relConstr.Arg2 as Cnst;
-                    // Compare value like high != 2 in rules if label "high" represent a Integer.
+                    Cnst value = null;
+                    string label2 = null;
+
+                    if (relConstr.Arg2.NodeKind == NodeKind.Cnst)
+                    {
+                        value = relConstr.Arg2 as Cnst;
+                    }
+                    else // if (relConstr.NodeKind == NodeKind.Id)
+                    {
+                        Id id2 = relConstr.Arg2 as Id;
+                        label2 = id2.Name;
+                    }
+
+                    // Compare value like high != 2 or low < high in rules if label "high" represent a Integer.
                     if (relConstr.Arg1.NodeKind == NodeKind.Id)
                     {
-                        OperatorInfo info = new OperatorInfo(relConstr.Op, (relConstr.Arg1 as Id).Name, value, false);
-                        OperatorList.Add(info);
                         Id id = relConstr.Arg1 as Id;
-                        if (!LabelFragmentsMap.ContainsKey(id.Name))
+                        string label1 = id.Name;
+                        OperatorInfo info = new OperatorInfo(relConstr.Op, label1, label2, value, false);
+                        OperatorList.Add(info);
+                        
+                        if (!LabelFragmentsMap.ContainsKey(label1))
                         {
-                            LabelFragmentsMap.Add(id.Name, id.Fragments.ToList());
+                            LabelFragmentsMap.Add(label1, id.Fragments.ToList());
+                        }
+
+                        // For cc.x < cc.y, add cc.y into LabelFragmentMap.
+                        if (label2 != null && !LabelFragmentsMap.ContainsKey(label2))
+                        {
+                            Id id2 = relConstr.Arg2 as Id;
+                            LabelFragmentsMap.Add(label2, id2.Fragments.ToList());
                         }
                     }
                     else
@@ -349,7 +380,7 @@
                         
                         string label = (compr.Heads.ElementAt(0) as Id).Name;
                         Body comprBody = (compr.Bodies.ElementAt(0) as Body);
-                        OperatorInfo info = new OperatorInfo(relConstr.Op, label, value, true);
+                        OperatorInfo info = new OperatorInfo(relConstr.Op, label, label2, value, true);
                         OperatorList.Add(info);
                         // Recursively Add labels inside count({s | ...}) into label map.
                         CreateLabelMap(comprBody, typeCounts);

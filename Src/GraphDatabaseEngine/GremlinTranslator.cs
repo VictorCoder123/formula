@@ -801,69 +801,148 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 }
             }
 
+            // Currently only support the comparsion of numeric and string values.
             foreach (var op in labelMap.OperatorList)
             {
                 if (op.isValueComparison)
                 {
                     string label = op.Label;
+                    string label2 = op.Label2;
                     Cnst cnst = op.Cnst;
                     int num;
                     string str;
                     string commandString = "";
                     ITraversal t = null;
 
-                    // __.As(label) should be an instance of built-in type like string and integer.
-                    if (cnst.CnstKind == CnstKind.String)
+                    if (cnst != null)
                     {
-                        str = cnst.GetStringValue();
-                        if (op.Operator == RelKind.Eq)
+                        // __.As(label) should be an instance of built-in type like string and integer.
+                        if (cnst.CnstKind == CnstKind.String)
                         {
-                            t = __.As(label).Values<string>("value").Is(P.Eq(str));
-                            commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Eq({1}));", label, str);
+                            str = cnst.GetStringValue();
+                            if (op.Operator == RelKind.Eq)
+                            {
+                                t = __.As(label).Values<string>("value").Is(P.Eq(str));
+                                commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Eq({1}));", label, str);
+                            }
+                            else if (op.Operator == RelKind.Neq)
+                            {
+                                t = __.As(label).Values<string>("value").Is(P.Neq(str));
+                                commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Neq({1}));", label, str);
+                            }
                         }
-                        else if(op.Operator == RelKind.Neq)
+                        else if (cnst.CnstKind == CnstKind.Numeric)
                         {
-                            t = __.As(label).Values<string>("value").Is(P.Neq(str));
-                            commandString = string.Format(@"__.As({0}).Values<string>('value').Is(P.Neq({1}));", label, str);
+                            num = (int)cnst.GetNumericValue().Numerator;
+                            if (op.Operator == RelKind.Gt)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Gt(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Gt({1}));", label, num);
+                            }
+                            else if (op.Operator == RelKind.Lt)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Lt(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Lt({1}));", label, num);
+                            }
+                            else if (op.Operator == RelKind.Ge)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Gte(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Ge({1}));", label, num);
+                            }
+                            else if (op.Operator == RelKind.Le)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Lte(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Le({1}));", label, num);
+                            }
+                            else if (op.Operator == RelKind.Eq)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Eq(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Eq({1}));", label, num);
+                            }
+                            else // (op.Operator == RelKind.Neq)
+                            {
+                                t = __.As(label).Values<int>("value").Is(P.Neq(num));
+                                commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Neq({1}));", label, num);
+                            }
                         }
+
+                        Console.WriteLine(commandString);
+                        if (t != null) subTraversals.Add(t);
                     }
-                    else if(cnst.CnstKind == CnstKind.Numeric)
+                    // Generate sub-traversal to compare the values of two variables represented by different labels.
+                    else if (label2 != null)
                     {
-                        num = (int)cnst.GetNumericValue().Numerator;
-                        if (op.Operator == RelKind.Gt)
+                        string label2Type = labelMap.GetLabelType(label2);
+                        string commandString1 = "";
+                        string commandString2 = "";
+                        string commandString3 = "";
+                        ITraversal t1 = null, t2 = null, t3 = null;
+
+                        if (label2Type == "String")
                         {
-                            t = __.As(label).Values<int>("value").Is(P.Gt(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Gt({1}));", label, num);
+                            t1 = __.As(label).Values<string>("value").As(label + "_value");
+                            t2 = __.As(label2).Values<string>("value").As(label2 + "_value");
+                            commandString1 = string.Format(@"__.As('{0}').Values<string>('value').As('{1}');", label, label + "_value");
+                            commandString2 = string.Format(@"__.As('{0}').Values<string>('value').As('{1}');", label2, label2 + "_value");
+
+                            if (op.Operator == RelKind.Eq)
+                            {                               
+                                t3 = __.Where(label + "_value", P.Eq(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Eq('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else if (op.Operator == RelKind.Neq)
+                            {
+                                t3 = __.Where(label + "_value", P.Neq(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Neq('{1}'));", label + "_value", label2 + "_value");
+                            }
                         }
-                        else if (op.Operator == RelKind.Lt)
+                        else if (label2Type == "Integer")
                         {
-                            t = __.As(label).Values<int>("value").Is(P.Lt(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Lt({1}));", label, num);
+                            t1 = __.As(label).Values<int>("value").As(label + "_value");
+                            t2 = __.As(label2).Values<int>("value").As(label2 + "_value");
+                            commandString1 = string.Format(@"__.As('{0}').Values<int>('value').As('{1}');", label, label + "_value");
+                            commandString2 = string.Format(@"__.As('{0}').Values<int>('value').As('{1}');", label2, label2 + "_value");
+
+                            if (op.Operator == RelKind.Gt)
+                            {
+                                t3 = __.Where(label + "_value", P.Gt(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Gt('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else if (op.Operator == RelKind.Lt)
+                            {
+                                t3 = __.Where(label + "_value", P.Lt(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Lt('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else if (op.Operator == RelKind.Ge)
+                            {
+                                t3 = __.Where(label + "_value", P.Gte(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Ge('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else if (op.Operator == RelKind.Le)
+                            {
+                                t3 = __.Where(label + "_value", P.Lte(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Lte('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else if (op.Operator == RelKind.Eq)
+                            {
+                                t3 = __.Where(label + "_value", P.Eq(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Eq('{1}'));", label + "_value", label2 + "_value");
+                            }
+                            else // (op.Operator == RelKind.Neq)
+                            {
+                                t3 = __.Where(label + "_value", P.Neq(label2 + "_value"));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Neq('{1}'));", label + "_value", label2 + "_value");
+                            }
                         }
-                        else if (op.Operator == RelKind.Ge)
-                        {
-                            t = __.As(label).Values<int>("value").Is(P.Gte(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Ge({1}));", label, num);
-                        }
-                        else if (op.Operator == RelKind.Le)
-                        {
-                            t = __.As(label).Values<int>("value").Is(P.Lte(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Le({1}));", label, num);
-                        }
-                        else if (op.Operator == RelKind.Eq)
-                        {
-                            t = __.As(label).Values<int>("value").Is(P.Eq(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Eq({1}));", label, num);
-                        }
-                        else // (op.Operator == RelKind.Neq)
-                        {
-                            t = __.As(label).Values<int>("value").Is(P.Neq(num));
-                            commandString = string.Format(@"__.As({0}).Values<int>('value').Is(P.Neq({1}));", label, num);
-                        }
+
+                        subTraversals.Add(t1);
+                        subTraversals.Add(t2);
+                        subTraversals.Add(t3);
+                        Console.WriteLine(commandString1);
+                        Console.WriteLine(commandString2);
+                        Console.WriteLine(commandString3);
                     }
 
-                    Console.WriteLine(commandString);
-                    if (t != null) subTraversals.Add(t);
                 }
             }
 
@@ -873,7 +952,8 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                 outputLabels.Add(instanceLabel);
             }          
 
-            // Add constraints between related labels
+            // Add constraints between related labels, all constraints are removed as some labels can 
+            // point to the same node in graph database.
             List<string> relatedLabelList = relatedLabels.ToList();
             for (int i = 0; i < relatedLabelList.Count(); i++)
             {
