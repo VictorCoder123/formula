@@ -15,20 +15,16 @@
         public static void Main(string[] args)
         {
             GraphDBExecutor executor = new GraphDBExecutor("localhost", 8182);
-            GremlinTranslator translator = new GremlinTranslator("test.4ml");
-            translator.ExportAllDomainToGraphDB(executor);
-            string query = "C(a, b)";
-            Body body = translator.ParseQueryString(query); 
-            DomainStore store = translator.DomainStores["TestModelPlus"];
-            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "a", "b" });
+            TestCase testcase = new TestCase();
+            var queryResult = testcase.Test2(executor);
 
+            // Print out query result in test case.
             foreach(var dict in queryResult)
             {
                 foreach (var pair in dict)
                 {
                     Console.WriteLine("{0} : {1}", pair.Key, pair.Value);
                 }
-
                 Console.WriteLine("----------------------");
             }
 
