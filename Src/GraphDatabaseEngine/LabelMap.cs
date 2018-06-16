@@ -334,14 +334,17 @@
                     Cnst value = null;
                     string label2 = null;
 
-                    if (relConstr.Arg2.NodeKind == NodeKind.Cnst)
+                    if (relConstr.Arg2 != null)
                     {
-                        value = relConstr.Arg2 as Cnst;
-                    }
-                    else // if (relConstr.NodeKind == NodeKind.Id)
-                    {
-                        Id id2 = relConstr.Arg2 as Id;
-                        label2 = id2.Name;
+                        if (relConstr.Arg2.NodeKind == NodeKind.Cnst)
+                        {
+                            value = relConstr.Arg2 as Cnst;
+                        }
+                        else // if (relConstr.NodeKind == NodeKind.Id)
+                        {
+                            Id id2 = relConstr.Arg2 as Id;
+                            label2 = id2.Name;
+                        }
                     }
 
                     // Compare value like high != 2 or low < high in rules if label "high" represent a Integer.
@@ -423,7 +426,8 @@
                 }
             }
 
-            // Check if the label is an argument label or binding label for instance.
+            // A label can be both binding label and argument label at the same time.
+            // Check if the label is binding label for instance.
             if (BindingMap.Keys.Contains(label))
             {
                 // Find all argument labels belonged to a binding label like cc is C(b, c) and add them into label set.
@@ -446,48 +450,47 @@
                 }
 
             }
-            else
-            {
-                // For labels like cc.y = 2 that it does not occur in constructor.
-                if (LabelInfoMap.ContainsKey(label))
-                {
-                    // Add other labels inside the same constructor.
-                    List<LabelInfo> labelInfoList;
-                    LabelInfoMap.TryGetValue(label, out labelInfoList);
 
-                    // srcTuples represents all occurance of target label.
-                    foreach (var labelInfo in labelInfoList)
+            // Check if the label is argument label in constructor.
+            // Exclude labels like cc.y = 2 that it does not occur in constructor.
+            if (LabelInfoMap.ContainsKey(label))
+            {
+                // Add other labels inside the same constructor.
+                List<LabelInfo> labelInfoList;
+                LabelInfoMap.TryGetValue(label, out labelInfoList);
+
+                // srcTuples represents all occurance of target label.
+                foreach (var labelInfo in labelInfoList)
+                {
+                    string typeName = labelInfo.Type;
+                    int count = labelInfo.InstanceIndex;
+                    foreach (var dstLabel in LabelInfoMap.Keys)
                     {
-                        string typeName = labelInfo.Type;
-                        int count = labelInfo.InstanceIndex;
-                        foreach (var dstLabel in LabelInfoMap.Keys)
+                        if (!labels.Contains(dstLabel))
                         {
-                            if (!labels.Contains(dstLabel))
+                            List<LabelInfo> dstTuples;
+                            LabelInfoMap.TryGetValue(dstLabel, out dstTuples);
+                            foreach (var dstTuple in dstTuples)
                             {
-                                List<LabelInfo> dstTuples;
-                                LabelInfoMap.TryGetValue(dstLabel, out dstTuples);
-                                foreach (var dstTuple in dstTuples)
+                                if (dstTuple.Type == typeName && dstTuple.InstanceIndex == count)
                                 {
-                                    if (dstTuple.Type == typeName && dstTuple.InstanceIndex == count)
-                                    {
-                                        labels.Add(dstLabel);
-                                        FindSCCLabels(labels, dstLabel);
-                                    }
+                                    labels.Add(dstLabel);
+                                    FindSCCLabels(labels, dstLabel);
                                 }
                             }
                         }
+                    }
 
-                        // Don't forget to check binding label map and add binding label.
-                        foreach (string bindingLabel in BindingMap.Keys)
+                    // Don't forget to check binding label map and add binding label.
+                    foreach (string bindingLabel in BindingMap.Keys)
+                    {
+                        if (!labels.Contains(bindingLabel))
                         {
-                            if (!labels.Contains(bindingLabel))
+                            LabelInfo bindingLabelInfo = BindingMap[bindingLabel];
+                            if (labelInfo.Type == bindingLabelInfo.Type && labelInfo.InstanceIndex == bindingLabelInfo.InstanceIndex)
                             {
-                                LabelInfo bindingLabelInfo = BindingMap[bindingLabel];
-                                if (labelInfo.Type == bindingLabelInfo.Type && labelInfo.InstanceIndex == bindingLabelInfo.InstanceIndex)
-                                {
-                                    labels.Add(bindingLabel);
-                                    FindSCCLabels(labels, bindingLabel);
-                                }
+                                labels.Add(bindingLabel);
+                                FindSCCLabels(labels, bindingLabel);
                             }
                         }
                     }

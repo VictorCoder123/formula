@@ -148,7 +148,7 @@
 
         public void AddBooleanVariable(string id, bool value)
         {
-            BooleanMap.Add(id, value);
+            BooleanMap[id] = value;
         }
 
         public void AddModel(string id, string type)

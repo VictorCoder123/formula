@@ -16,8 +16,6 @@
     using Gremlin.Net.Driver;
     using Gremlin.Net.Driver.Remote;
 
-    // TODO: Add more edges for Edge label like a1.x = 1
-    // TODO: type constraints like  a is A
     // TODO: Handle transitive closure with Gremlin Loop Matching Pattern.
     public class GremlinTranslator
     {
@@ -469,8 +467,14 @@
                 List<Dictionary<string, object>> result = GetQueryResult(executor, store, body, group.ToList());
 
                 if (!SatisfyCountConstraint(labelMap, result.Count(), group))
-                {   
+                {
                     // Terminate rule execution if the count of some labels does not satify constraints.
+                    if (r.Heads.ElementAt(0).NodeKind == NodeKind.Id)
+                    {
+                        Id id = r.Heads.ElementAt(0) as Id;
+                        string boolLabel = id.Name;
+                        store.AddBooleanVariable(boolLabel, false);
+                    }
                     return;
                 }
 
@@ -749,7 +753,7 @@
             foreach (string relatedLabel in relatedLabels)
             {
                 // Only choose label that is not binding label and occur in constructors.
-                if (!labelMap.IsBindingLabel(relatedLabel) && labelMap.GetLabelOccuranceInfo(relatedLabel) != null)
+                if (labelMap.GetLabelOccuranceInfo(relatedLabel) != null)
                 {
                     List<LabelMap.LabelInfo> labelInfoList = labelMap.GetLabelOccuranceInfo(relatedLabel);
                     foreach (LabelMap.LabelInfo labelInfo in labelInfoList)
@@ -786,18 +790,16 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                         subTraversals.Add(t2);
                     }
                 }
-                else
+               
+                // Handle label with fragments like a.b.c related to "a" in rules for binding label.
+                List<string> relatedLabelsWithFragments = labelMap.GetRelatedLabelsWithFragments(relatedLabel);
+                foreach (string relatedLabelWithFragments in relatedLabelsWithFragments)
                 {
-                    // Handle label with fragments like a.b.c related to "a" in rules for binding label.
-                    List<string> relatedLabelsWithFragments = labelMap.GetRelatedLabelsWithFragments(relatedLabel);
-                    foreach (string relatedLabelWithFragments in relatedLabelsWithFragments)
-                    {
-                        var t = CreateSubTraversalForFragmentedLabel(relatedLabelWithFragments, labelMap);
-                        subTraversals.Add(t);
+                    var t = CreateSubTraversalForFragmentedLabel(relatedLabelWithFragments, labelMap);
+                    subTraversals.Add(t);
 
-                        var tr = CreateSubTraversalForFragmentedLabelReverse(relatedLabelWithFragments, labelMap);
-                        subTraversals.Add(tr);
-                    }
+                    var tr = CreateSubTraversalForFragmentedLabelReverse(relatedLabelWithFragments, labelMap);
+                    subTraversals.Add(tr);
                 }
             }
 
@@ -872,13 +874,16 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                     // Generate sub-traversal to compare the values of two variables represented by different labels.
                     else if (label2 != null)
                     {
+                        // Need to handle Union type like Multiplicity ::= new (low: Integer, high: Integer + {"*"}).
+                        // At least one of the two labels has Integer type or String type.
+                        string labelType = labelMap.GetLabelType(label);
                         string label2Type = labelMap.GetLabelType(label2);
                         string commandString1 = "";
                         string commandString2 = "";
                         string commandString3 = "";
                         ITraversal t1 = null, t2 = null, t3 = null;
 
-                        if (label2Type == "String")
+                        if (labelType == "String" || label2Type == "String")
                         {
                             t1 = __.As(label).Values<string>("value").As(label + "_value");
                             t2 = __.As(label2).Values<string>("value").As(label2 + "_value");
@@ -886,7 +891,7 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                             commandString2 = string.Format(@"__.As('{0}').Values<string>('value').As('{1}');", label2, label2 + "_value");
 
                             if (op.Operator == RelKind.Eq)
-                            {                               
+                            {
                                 t3 = __.Where(label + "_value", P.Eq(label2 + "_value"));
                                 commandString3 = string.Format(@"__.Where('{0}', P.Eq('{1}'));", label + "_value", label2 + "_value");
                             }
@@ -895,8 +900,15 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                                 t3 = __.Where(label + "_value", P.Neq(label2 + "_value"));
                                 commandString3 = string.Format(@"__.Where('{0}', P.Neq('{1}'));", label + "_value", label2 + "_value");
                             }
+
+                            subTraversals.Add(t1);
+                            subTraversals.Add(t2);
+                            subTraversals.Add(t3);
+                            Console.WriteLine(commandString1);
+                            Console.WriteLine(commandString2);
+                            Console.WriteLine(commandString3);
                         }
-                        else if (label2Type == "Integer")
+                        else if (labelType == "Integer" || label2Type == "Integer")
                         {
                             t1 = __.As(label).Values<int>("value").As(label + "_value");
                             t2 = __.As(label2).Values<int>("value").As(label2 + "_value");
@@ -933,14 +945,30 @@ __.As('{4}').Has('type', {2}).Has('domain', {5}).Out('ARG_{1}').As({0});", relat
                                 t3 = __.Where(label + "_value", P.Neq(label2 + "_value"));
                                 commandString3 = string.Format(@"__.Where('{0}', P.Neq('{1}'));", label + "_value", label2 + "_value");
                             }
-                        }
 
-                        subTraversals.Add(t1);
-                        subTraversals.Add(t2);
-                        subTraversals.Add(t3);
-                        Console.WriteLine(commandString1);
-                        Console.WriteLine(commandString2);
-                        Console.WriteLine(commandString3);
+                            subTraversals.Add(t1);
+                            subTraversals.Add(t2);
+                            subTraversals.Add(t3);
+                            Console.WriteLine(commandString1);
+                            Console.WriteLine(commandString2);
+                            Console.WriteLine(commandString3);
+                        }
+                        else // Equality comparison of Non built-in type like e is Edge, m is MetaEdge, m = e.type
+                        {
+                            if (op.Operator == RelKind.Eq)
+                            {
+                                t3 = __.Where(label, P.Eq(label2));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Eq('{1}'));", label, label2);
+                            }
+                            else if (op.Operator == RelKind.Neq)
+                            {
+                                t3 = __.Where(label, P.Neq(label2));
+                                commandString3 = string.Format(@"__.Where('{0}', P.Neq('{1}'));", label, label2);
+                            }
+                            subTraversals.Add(t3);
+                            Console.WriteLine(commandString3);
+                        }
+        
                     }
 
                 }
