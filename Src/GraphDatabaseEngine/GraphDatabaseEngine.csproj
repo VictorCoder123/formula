@@ -188,7 +188,8 @@
       <LastGenOutput>Settings.Designer.cs</LastGenOutput>
     </None>
     <AppDesigner Include="Properties\" />
-    <None Include="Test\test.4ml">
+    <None Include="Test\Examples\ProducerConsumer.4ml" />
+    <None Include="Test\Examples\test.4ml">
       <Generator>MSBuild:Compile</Generator>
     </None>
   </ItemGroup>
