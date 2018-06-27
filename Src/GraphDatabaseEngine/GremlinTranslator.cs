@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Linq;
     using System.Text;
 
@@ -524,6 +525,7 @@
 
         public void ExportOneDomainToGraphDB(GraphDBExecutor executor, DomainStore store)
         {
+            Stopwatch stopWatch = new Stopwatch();
             string domainName = store.DomainName;
             executor.AddDomainVertex(domainName);
 
@@ -658,18 +660,32 @@
             // Execute rules defined in domain in sequence.
             // Execute rules defined in the domain to add more model facts into database.
             List<Rule> rules = store.Rules;
-
             // Execute rules in loop until no more new model fact is added into database.
             int oldModelCount = -1;
             int newModelCount = store.IdTypeMap.Count();
             while (newModelCount != oldModelCount)
             {
+                TimeSpan oldTimeSpan = new TimeSpan();
                 oldModelCount = newModelCount;
                 foreach(var rule in rules)
                 {
+                    stopWatch.Start();
                     ExecuteRule(rule, executor, store);
+                    stopWatch.Stop();
+
+                    TimeSpan interval = stopWatch.Elapsed - oldTimeSpan;
+                    string elapsedTime = interval.ToString("c");
+                    Console.WriteLine("--------------------------------------------------------");
+                    Console.WriteLine(string.Format("Execution time for one rule: {0}", elapsedTime));
+                    Console.WriteLine("--------------------------------------------------------\n");
+                    oldTimeSpan = stopWatch.Elapsed;
                 }
                 newModelCount = store.IdTypeMap.Count();
+                string elapsedTimeOneRound = stopWatch.Elapsed.ToString("c");
+                Console.WriteLine("++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+                Console.WriteLine(string.Format("Execution time for one round: {0}", elapsedTimeOneRound));
+                Console.WriteLine("++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n");
+                stopWatch.Reset();
             }
         }
 

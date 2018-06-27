@@ -189,7 +189,7 @@
     </None>
     <AppDesigner Include="Properties\" />
     <None Include="Test\Examples\ProducerConsumer.4ml" />
-    <None Include="Test\Examples\test.4ml">
+    <None Include="Test\Examples\TestModel.4ml">
       <Generator>MSBuild:Compile</Generator>
     </None>
   </ItemGroup>
