@@ -1,4 +1,4 @@
-﻿domain WebGME
+domain WebGME
 {
 MetaNode ::= new (name: String).
 MetaEdge ::= new (name: String, src: MetaNode, dst: MetaNode, ms: Multiplicity, md: Multiplicity).
@@ -28,122 +28,125 @@ not7 :- m is MetaEdge, n is Node, NodeInstanceOf(m.dst,n), m.ms.low != 0, no{e |
 
 }
 
+
 model Producer_Consumer of WebGME
 {
-  string is MetaNode("string").
-  integer is MetaNode("integer").
-  float is MetaNode("float").
-  boolean is MetaNode("boolean").
-  asset is MetaNode("asset").
+string is MetaNode("string").
+integer is MetaNode("integer").
+float is MetaNode("float").
+boolean is MetaNode("boolean").
+asset is MetaNode("asset").
 
-  exactlyOne is Multiplicity(1,1).
-  atMostOne is Multiplicity(0,1).
-  atLeastOne is Multiplicity(1,"*").
-  anyNumber is Multiplicity(0,"*").
+exactlyOne is Multiplicity(1,1).
+atMostOne is Multiplicity(0,1).
+atLeastOne is Multiplicity(1,"*").
+anyNumber is Multiplicity(0,"*").
 
-  FCO is MetaNode("FCO").
-  FCO_attr_name is MetaEdge("FCO_attr_name",FCO,string,anyNumber,atMostOne).
-  ArchitectureStyle is MetaNode("ArchitectureStyle").
-  NodeInheritance(FCO,ArchitectureStyle).
-  Projects is MetaNode("Projects").
-  Projects_attr_path is MetaEdge("Projects_attr_path",Projects,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,Projects).
-  ComponentType is MetaNode("ComponentType").
-  ComponentType_attr_definitions is MetaEdge("ComponentType_attr_definitions",ComponentType,string,anyNumber,atMostOne).
-  ComponentType_attr_forwards is MetaEdge("ComponentType_attr_forwards",ComponentType,string,anyNumber,atMostOne).
-  ComponentType_attr_constructors is MetaEdge("ComponentType_attr_constructors",ComponentType,string,anyNumber,atMostOne).
-  ComponentType_attr_cardinality is MetaEdge("ComponentType_attr_cardinality",ComponentType,string,anyNumber,atMostOne).
-  ComponentType_set_associatedWith_md is Multiplicity(0,"*").
-  ComponentType_set_associatedWith is MetaEdge("associatedWith",ComponentType,ComponentType,anyNumber,ComponentType_set_associatedWith_md).
-  NodeInheritance(FCO,ComponentType).
-  TransitionBase is MetaNode("TransitionBase").
-  TransitionBase_attr_transitionMethod is MetaEdge("TransitionBase_attr_transitionMethod",TransitionBase,string,anyNumber,atMostOne).
-  TransitionBase_attr_guardName is MetaEdge("TransitionBase_attr_guardName",TransitionBase,string,anyNumber,atMostOne).
-  TransitionBase_ptr_src_target is MetaNode("TransitionBase_ptr_src_target").
-  TransitionBase_ptr_src is MetaEdge("src",TransitionBase,TransitionBase_ptr_src_target,anyNumber,atMostOne).
-  NodeInheritance(TransitionBase_ptr_src_target,StateBase).
-  TransitionBase_ptr_dst_target is MetaNode("TransitionBase_ptr_dst_target").
-  TransitionBase_ptr_dst is MetaEdge("dst",TransitionBase,TransitionBase_ptr_dst_target,anyNumber,atMostOne).
-  NodeInheritance(TransitionBase_ptr_dst_target,StateBase).
-  NodeInheritance(FCO,TransitionBase).
-  EnforceableTransition is MetaNode("EnforceableTransition").
-  NodeInheritance(TransitionBase,EnforceableTransition).
-  SpontaneousTransition is MetaNode("SpontaneousTransition").
-  NodeInheritance(TransitionBase,SpontaneousTransition).
-  InternalTransition is MetaNode("InternalTransition").
-  NodeInheritance(TransitionBase,InternalTransition).
-  Connector is MetaNode("Connector").
-  Connector_ptr_src_target is MetaNode("Connector_ptr_src_target").
-  Connector_ptr_src is MetaEdge("src",Connector,Connector_ptr_src_target,anyNumber,atMostOne).
-  NodeInheritance(Connector_ptr_src_target,ConnectorEnd).
-  Connector_ptr_dst_target is MetaNode("Connector_ptr_dst_target").
-  Connector_ptr_dst is MetaEdge("dst",Connector,Connector_ptr_dst_target,anyNumber,atMostOne).
-  NodeInheritance(Connector_ptr_dst_target,ConnectorEnd).
-  NodeInheritance(Connector_ptr_dst_target,Connector).
-  NodeInheritance(FCO,Connector).
-  StateBase is MetaNode("StateBase").
-  NodeInheritance(FCO,StateBase).
-  State is MetaNode("State").
-  NodeInheritance(StateBase,State).
-  InitialState is MetaNode("InitialState").
-  NodeInheritance(StateBase,InitialState).
-  Language is MetaNode("Language").
-  NodeInheritance(FCO,Language).
-  Synchron is MetaNode("Synchron").
-  NodeInheritance(ConnectorEnd,Synchron).
-  Trigger is MetaNode("Trigger").
-  NodeInheritance(ConnectorEnd,Trigger).
-  ConnectorEnd is MetaNode("ConnectorEnd").
-  ConnectorEnd_attr_multiplicity is MetaEdge("ConnectorEnd_attr_multiplicity",ConnectorEnd,string,anyNumber,atMostOne).
-  ConnectorEnd_attr_degree is MetaEdge("ConnectorEnd_attr_degree",ConnectorEnd,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,ConnectorEnd).
-  Connection is MetaNode("Connection").
-  Connection_ptr_dst_target is MetaNode("Connection_ptr_dst_target").
-  Connection_ptr_dst is MetaEdge("dst",Connection,Connection_ptr_dst_target,anyNumber,atMostOne).
-  NodeInheritance(Connection_ptr_dst_target,ExportPort).
-  NodeInheritance(Connection_ptr_dst_target,EnforceableTransition).
-  Connection_ptr_src_target is MetaNode("Connection_ptr_src_target").
-  Connection_ptr_src is MetaEdge("src",Connection,Connection_ptr_src_target,anyNumber,atMostOne).
-  NodeInheritance(Connection_ptr_src_target,Connector).
-  NodeInheritance(Connection_ptr_src_target,ConnectorEnd).
-  NodeInheritance(FCO,Connection).
-  Project is MetaNode("Project").
-  Project_attr_engineOutput is MetaEdge("Project_attr_engineOutput",Project,asset,anyNumber,atMostOne).
-  Project_attr_briefDescription is MetaEdge("Project_attr_briefDescription",Project,string,anyNumber,atMostOne).
-  Project_attr_detailedDescription is MetaEdge("Project_attr_detailedDescription",Project,string,anyNumber,atMostOne).
-  Project_attr_icon is MetaEdge("Project_attr_icon",Project,string,anyNumber,atMostOne).
-  Project_attr_authors is MetaEdge("Project_attr_authors",Project,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,Project).
-  CompoundType is MetaNode("CompoundType").
-  CompoundType_attr_cardinality is MetaEdge("CompoundType_attr_cardinality",CompoundType,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,CompoundType).
-  ExportPort is MetaNode("ExportPort").
-  NodeInheritance(FCO,ExportPort).
-  ArchitectureStylesLibrary is MetaNode("ArchitectureStylesLibrary").
-  NodeInheritance(FCO,ArchitectureStylesLibrary).
-  ComponentTypesLibrary is MetaNode("ComponentTypesLibrary").
-  NodeInheritance(FCO,ComponentTypesLibrary).
-  Guard is MetaNode("Guard").
-  Guard_attr_guardMethod is MetaEdge("Guard_attr_guardMethod",Guard,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,Guard).
-  Documentation is MetaNode("Documentation").
-  Documentation_attr_documentation is MetaEdge("Documentation_attr_documentation",Documentation,string,anyNumber,atMostOne).
-  NodeInheritance(FCO,Documentation).
-  Functional_block is MetaNode("Functional_block").
-  Functional_block_attr_cardinality is MetaEdge("Functional_block_attr_cardinality",Functional_block,string,anyNumber,atMostOne).
-  Functional_block_set_implementedBy_md is Multiplicity(0,"*").
-  Functional_block_set_implementedBy is MetaEdge("implementedBy",Functional_block,ComponentType,anyNumber,Functional_block_set_implementedBy_md).
-  NodeInheritance(FCO,Functional_block).
-  Functional_View is MetaNode("Functional_View").
-  NodeInheritance(FCO,Functional_View).
-  Information_Flow is MetaNode("Information_Flow").
-  Information_Flow_ptr_src_target is MetaNode("Information_Flow_ptr_src_target").
-  Information_Flow_ptr_src is MetaEdge("src",Information_Flow,Information_Flow_ptr_src_target,anyNumber,atMostOne).
-  NodeInheritance(Information_Flow_ptr_src_target,Functional_block).
-  Information_Flow_ptr_dst_target is MetaNode("Information_Flow_ptr_dst_target").
-  Information_Flow_ptr_dst is MetaEdge("dst",Information_Flow,Information_Flow_ptr_dst_target,anyNumber,atMostOne).
-  NodeInheritance(Information_Flow_ptr_dst_target,Functional_block).
-  NodeInheritance(FCO,Information_Flow).
+FCO is MetaNode("FCO").
+FCO_attr_name is MetaEdge("FCO_attr_name",FCO,string,anyNumber,atMostOne).
+ArchitectureStyle is MetaNode("ArchitectureStyle").
+NodeInheritance(FCO,ArchitectureStyle).
+Projects is MetaNode("Projects").
+Projects_attr_path is MetaEdge("Projects_attr_path",Projects,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Projects).
+ComponentType is MetaNode("ComponentType").
+ComponentType_attr_definitions is MetaEdge("ComponentType_attr_definitions",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_forwards is MetaEdge("ComponentType_attr_forwards",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_constructors is MetaEdge("ComponentType_attr_constructors",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_cardinality is MetaEdge("ComponentType_attr_cardinality",ComponentType,string,anyNumber,atMostOne).
+ComponentType_set_associatedWith_md is Multiplicity(0,"*").
+ComponentType_set_associatedWith is MetaEdge("associatedWith",ComponentType,ComponentType,anyNumber,ComponentType_set_associatedWith_md).
+NodeInheritance(FCO,ComponentType).
+TransitionBase is MetaNode("TransitionBase").
+TransitionBase_attr_transitionMethod is MetaEdge("TransitionBase_attr_transitionMethod",TransitionBase,string,anyNumber,atMostOne).
+TransitionBase_attr_guardName is MetaEdge("TransitionBase_attr_guardName",TransitionBase,string,anyNumber,atMostOne).
+TransitionBase_ptr_src_target is MetaNode("TransitionBase_ptr_src_target").
+TransitionBase_ptr_src is MetaEdge("src",TransitionBase,TransitionBase_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(TransitionBase_ptr_src_target,StateBase).
+TransitionBase_ptr_dst_target is MetaNode("TransitionBase_ptr_dst_target").
+TransitionBase_ptr_dst is MetaEdge("dst",TransitionBase,TransitionBase_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(TransitionBase_ptr_dst_target,StateBase).
+NodeInheritance(FCO,TransitionBase).
+EnforceableTransition is MetaNode("EnforceableTransition").
+NodeInheritance(TransitionBase,EnforceableTransition).
+SpontaneousTransition is MetaNode("SpontaneousTransition").
+NodeInheritance(TransitionBase,SpontaneousTransition).
+InternalTransition is MetaNode("InternalTransition").
+NodeInheritance(TransitionBase,InternalTransition).
+Connector is MetaNode("Connector").
+Connector_ptr_src_target is MetaNode("Connector_ptr_src_target").
+Connector_ptr_src is MetaEdge("src",Connector,Connector_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Connector_ptr_src_target,ConnectorEnd).
+Connector_ptr_dst_target is MetaNode("Connector_ptr_dst_target").
+Connector_ptr_dst is MetaEdge("dst",Connector,Connector_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Connector_ptr_dst_target,ConnectorEnd).
+NodeInheritance(Connector_ptr_dst_target,Connector).
+NodeInheritance(FCO,Connector).
+StateBase is MetaNode("StateBase").
+NodeInheritance(FCO,StateBase).
+State is MetaNode("State").
+NodeInheritance(StateBase,State).
+InitialState is MetaNode("InitialState").
+NodeInheritance(StateBase,InitialState).
+Language is MetaNode("Language").
+NodeInheritance(FCO,Language).
+Synchron is MetaNode("Synchron").
+NodeInheritance(ConnectorEnd,Synchron).
+Trigger is MetaNode("Trigger").
+NodeInheritance(ConnectorEnd,Trigger).
+ConnectorEnd is MetaNode("ConnectorEnd").
+ConnectorEnd_attr_multiplicity is MetaEdge("ConnectorEnd_attr_multiplicity",ConnectorEnd,string,anyNumber,atMostOne).
+ConnectorEnd_attr_degree is MetaEdge("ConnectorEnd_attr_degree",ConnectorEnd,string,anyNumber,atMostOne).
+NodeInheritance(FCO,ConnectorEnd).
+Connection is MetaNode("Connection").
+Connection_ptr_dst_target is MetaNode("Connection_ptr_dst_target").
+Connection_ptr_dst is MetaEdge("dst",Connection,Connection_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Connection_ptr_dst_target,ExportPort).
+NodeInheritance(Connection_ptr_dst_target,EnforceableTransition).
+Connection_ptr_src_target is MetaNode("Connection_ptr_src_target").
+Connection_ptr_src is MetaEdge("src",Connection,Connection_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Connection_ptr_src_target,Connector).
+NodeInheritance(Connection_ptr_src_target,ConnectorEnd).
+NodeInheritance(FCO,Connection).
+Project is MetaNode("Project").
+Project_attr_engineOutput is MetaEdge("Project_attr_engineOutput",Project,asset,anyNumber,atMostOne).
+Project_attr_briefDescription is MetaEdge("Project_attr_briefDescription",Project,string,anyNumber,atMostOne).
+Project_attr_detailedDescription is MetaEdge("Project_attr_detailedDescription",Project,string,anyNumber,atMostOne).
+Project_attr_icon is MetaEdge("Project_attr_icon",Project,string,anyNumber,atMostOne).
+Project_attr_authors is MetaEdge("Project_attr_authors",Project,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Project).
+CompoundType is MetaNode("CompoundType").
+CompoundType_attr_cardinality is MetaEdge("CompoundType_attr_cardinality",CompoundType,string,anyNumber,atMostOne).
+NodeInheritance(FCO,CompoundType).
+ExportPort is MetaNode("ExportPort").
+NodeInheritance(FCO,ExportPort).
+ArchitectureStylesLibrary is MetaNode("ArchitectureStylesLibrary").
+NodeInheritance(FCO,ArchitectureStylesLibrary).
+ComponentTypesLibrary is MetaNode("ComponentTypesLibrary").
+NodeInheritance(FCO,ComponentTypesLibrary).
+Guard is MetaNode("Guard").
+Guard_attr_guardMethod is MetaEdge("Guard_attr_guardMethod",Guard,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Guard).
+Documentation is MetaNode("Documentation").
+Documentation_attr_documentation is MetaEdge("Documentation_attr_documentation",Documentation,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Documentation).
+Functional_block is MetaNode("Functional_block").
+Functional_block_attr_cardinality is MetaEdge("Functional_block_attr_cardinality",Functional_block,string,anyNumber,atMostOne).
+Functional_block_set_implementedBy_md is Multiplicity(0,"*").
+Functional_block_set_implementedBy is MetaEdge("implementedBy",Functional_block,ComponentType,anyNumber,Functional_block_set_implementedBy_md).
+NodeInheritance(FCO,Functional_block).
+Functional_View is MetaNode("Functional_View").
+NodeInheritance(FCO,Functional_View).
+Information_Flow is MetaNode("Information_Flow").
+Information_Flow_ptr_src_target is MetaNode("Information_Flow_ptr_src_target").
+Information_Flow_ptr_src is MetaEdge("src",Information_Flow,Information_Flow_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Information_Flow_ptr_src_target,Functional_block).
+Information_Flow_ptr_dst_target is MetaNode("Information_Flow_ptr_dst_target").
+Information_Flow_ptr_dst is MetaEdge("dst",Information_Flow,Information_Flow_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Information_Flow_ptr_dst_target,Functional_block).
+NodeInheritance(FCO,Information_Flow).
+
+
 __f_Q is Node("/f/Q",Project).
 NodeInheritance(Project,__f_Q).
 __f_Q_attr_name is Edge("name",FCO_attr_name,__f_Q,string_0).
@@ -152,31 +155,37 @@ __f_Q_attr_briefDescription is Edge("briefDescription",Project_attr_briefDescrip
 __f_Q_attr_detailedDescription is Edge("detailedDescription",Project_attr_detailedDescription,__f_Q,string_1).
 __f_Q_attr_icon is Edge("icon",Project_attr_icon,__f_Q,string_1).
 __f_Q_attr_authors is Edge("authors",Project_attr_authors,__f_Q,string_1).
+
 __f_Q_4 is Node("/f/Q/4",Connection).
 NodeInheritance(Connection,__f_Q_4).
 __f_Q_4_attr_name is Edge("name",FCO_attr_name,__f_Q_4,string_2).
 __f_Q_4_ptr_dst is Edge("dst",Connection_ptr_dst,__f_Q_4,__f_Q_h_w).
 __f_Q_4_ptr_src is Edge("src",Connection_ptr_src,__f_Q_4,__f_Q_i).
+
 __f_Q_e is Node("/f/Q/e",Connection).
 NodeInheritance(Connection,__f_Q_e).
 __f_Q_e_attr_name is Edge("name",FCO_attr_name,__f_Q_e,string_2).
 __f_Q_e_ptr_dst is Edge("dst",Connection_ptr_dst,__f_Q_e,__f_Q_O_9).
 __f_Q_e_ptr_src is Edge("src",Connection_ptr_src,__f_Q_e,__f_Q_t).
+
 __f_Q_Z is Node("/f/Q/Z",Synchron).
 NodeInheritance(Synchron,__f_Q_Z).
 __f_Q_Z_attr_name is Edge("name",FCO_attr_name,__f_Q_Z,string_3).
 __f_Q_Z_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_Q_Z,string_4).
 __f_Q_Z_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_Q_Z,string_5).
+
 __f_Q_i is Node("/f/Q/i",Synchron).
 NodeInheritance(Synchron,__f_Q_i).
 __f_Q_i_attr_name is Edge("name",FCO_attr_name,__f_Q_i,string_3).
 __f_Q_i_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_Q_i,string_4).
 __f_Q_i_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_Q_i,string_4).
+
 __f_Q_o is Node("/f/Q/o",Connection).
 NodeInheritance(Connection,__f_Q_o).
 __f_Q_o_attr_name is Edge("name",FCO_attr_name,__f_Q_o,string_2).
 __f_Q_o_ptr_dst is Edge("dst",Connection_ptr_dst,__f_Q_o,__f_Q_O_t).
 __f_Q_o_ptr_src is Edge("src",Connection_ptr_src,__f_Q_o,__f_Q_Z).
+
 __f_Q_A is Node("/f/Q/A",ComponentType).
 NodeInheritance(ComponentType,__f_Q_A).
 __f_Q_A_attr_name is Edge("name",FCO_attr_name,__f_Q_A,string_6).
@@ -184,9 +193,11 @@ __f_Q_A_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__
 __f_Q_A_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_Q_A,string_1).
 __f_Q_A_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_Q_A,string_8).
 __f_Q_A_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_Q_A,string_9).
+
 __f_Q_A_L is Node("/f/Q/A/L",InitialState).
 NodeInheritance(InitialState,__f_Q_A_L).
 __f_Q_A_L_attr_name is Edge("name",FCO_attr_name,__f_Q_A_L,string_10).
+
 __f_Q_A_D is Node("/f/Q/A/D",EnforceableTransition).
 NodeInheritance(EnforceableTransition,__f_Q_A_D).
 __f_Q_A_D_attr_name is Edge("name",FCO_attr_name,__f_Q_A_D,string_11).
@@ -194,6 +205,7 @@ __f_Q_A_D_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_t
 __f_Q_A_D_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_Q_A_D,string_1).
 __f_Q_A_D_ptr_src is Edge("src",TransitionBase_ptr_src,__f_Q_A_D,__f_Q_A_L).
 __f_Q_A_D_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_Q_A_D,__f_Q_A_L).
+
 __f_Q_O is Node("/f/Q/O",ComponentType).
 NodeInheritance(ComponentType,__f_Q_O).
 __f_Q_O_attr_name is Edge("name",FCO_attr_name,__f_Q_O,string_13).
@@ -201,6 +213,7 @@ __f_Q_O_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__
 __f_Q_O_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_Q_O,string_1).
 __f_Q_O_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_Q_O,string_15).
 __f_Q_O_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_Q_O,string_4).
+
 __f_Q_O_9 is Node("/f/Q/O/9",EnforceableTransition).
 NodeInheritance(EnforceableTransition,__f_Q_O_9).
 __f_Q_O_9_attr_name is Edge("name",FCO_attr_name,__f_Q_O_9,string_16).
@@ -208,9 +221,11 @@ __f_Q_O_9_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_t
 __f_Q_O_9_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_Q_O_9,string_18).
 __f_Q_O_9_ptr_src is Edge("src",TransitionBase_ptr_src,__f_Q_O_9,__f_Q_O_v).
 __f_Q_O_9_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_Q_O_9,__f_Q_O_v).
+
 __f_Q_O_v is Node("/f/Q/O/v",InitialState).
 NodeInheritance(InitialState,__f_Q_O_v).
 __f_Q_O_v_attr_name is Edge("name",FCO_attr_name,__f_Q_O_v,string_10).
+
 __f_Q_O_t is Node("/f/Q/O/t",EnforceableTransition).
 NodeInheritance(EnforceableTransition,__f_Q_O_t).
 __f_Q_O_t_attr_name is Edge("name",FCO_attr_name,__f_Q_O_t,string_19).
@@ -218,14 +233,17 @@ __f_Q_O_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_t
 __f_Q_O_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_Q_O_t,string_21).
 __f_Q_O_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_Q_O_t,__f_Q_O_v).
 __f_Q_O_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_Q_O_t,__f_Q_O_v).
+
 __f_Q_O_R is Node("/f/Q/O/R",Guard).
 NodeInheritance(Guard,__f_Q_O_R).
 __f_Q_O_R_attr_name is Edge("name",FCO_attr_name,__f_Q_O_R,string_18).
 __f_Q_O_R_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_Q_O_R,string_22).
+
 __f_Q_O_C is Node("/f/Q/O/C",Guard).
 NodeInheritance(Guard,__f_Q_O_C).
 __f_Q_O_C_attr_name is Edge("name",FCO_attr_name,__f_Q_O_C,string_21).
 __f_Q_O_C_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_Q_O_C,string_23).
+
 __f_Q_h is Node("/f/Q/h",ComponentType).
 NodeInheritance(ComponentType,__f_Q_h).
 __f_Q_h_attr_name is Edge("name",FCO_attr_name,__f_Q_h,string_24).
@@ -233,9 +251,11 @@ __f_Q_h_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__
 __f_Q_h_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_Q_h,string_1).
 __f_Q_h_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_Q_h,string_26).
 __f_Q_h_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_Q_h,string_5).
+
 __f_Q_h_Z is Node("/f/Q/h/Z",InitialState).
 NodeInheritance(InitialState,__f_Q_h_Z).
 __f_Q_h_Z_attr_name is Edge("name",FCO_attr_name,__f_Q_h_Z,string_10).
+
 __f_Q_h_w is Node("/f/Q/h/w",EnforceableTransition).
 NodeInheritance(EnforceableTransition,__f_Q_h_w).
 __f_Q_h_w_attr_name is Edge("name",FCO_attr_name,__f_Q_h_w,string_27).
@@ -243,31 +263,37 @@ __f_Q_h_w_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_t
 __f_Q_h_w_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_Q_h_w,string_1).
 __f_Q_h_w_ptr_src is Edge("src",TransitionBase_ptr_src,__f_Q_h_w,__f_Q_h_Z).
 __f_Q_h_w_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_Q_h_w,__f_Q_h_Z).
+
 __f_Q_w is Node("/f/Q/w",Synchron).
 NodeInheritance(Synchron,__f_Q_w).
 __f_Q_w_attr_name is Edge("name",FCO_attr_name,__f_Q_w,string_3).
 __f_Q_w_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_Q_w,string_4).
 __f_Q_w_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_Q_w,string_4).
+
 __f_Q_t is Node("/f/Q/t",Synchron).
 NodeInheritance(Synchron,__f_Q_t).
 __f_Q_t_attr_name is Edge("name",FCO_attr_name,__f_Q_t,string_3).
 __f_Q_t_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_Q_t,string_4).
 __f_Q_t_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_Q_t,string_9).
+
 __f_Q_R is Node("/f/Q/R",Connector).
 NodeInheritance(Connector,__f_Q_R).
 __f_Q_R_attr_name is Edge("name",FCO_attr_name,__f_Q_R,string_29).
 __f_Q_R_ptr_src is Edge("src",Connector_ptr_src,__f_Q_R,__f_Q_w).
 __f_Q_R_ptr_dst is Edge("dst",Connector_ptr_dst,__f_Q_R,__f_Q_t).
+
 __f_Q_D is Node("/f/Q/D",Connector).
 NodeInheritance(Connector,__f_Q_D).
 __f_Q_D_attr_name is Edge("name",FCO_attr_name,__f_Q_D,string_29).
 __f_Q_D_ptr_src is Edge("src",Connector_ptr_src,__f_Q_D,__f_Q_i).
 __f_Q_D_ptr_dst is Edge("dst",Connector_ptr_dst,__f_Q_D,__f_Q_Z).
+
 __f_Q_U is Node("/f/Q/U",Connection).
 NodeInheritance(Connection,__f_Q_U).
 __f_Q_U_attr_name is Edge("name",FCO_attr_name,__f_Q_U,string_2).
 __f_Q_U_ptr_dst is Edge("dst",Connection_ptr_dst,__f_Q_U,__f_Q_A_D).
 __f_Q_U_ptr_src is Edge("src",Connection_ptr_src,__f_Q_U,__f_Q_w).
+
 string_0 is Node("Producer Consumer",string).
 NodeInheritance(string,string_0).
 string_1 is Node("",string).
@@ -330,5 +356,6 @@ string_29 is Node("Connector",string).
 NodeInheritance(string,string_29).
 asset_0 is Node("fe59cbeecf8d4680c93fe566255ab65ac54ea10f",asset).
 NodeInheritance(asset,asset_0).
+
 
 }

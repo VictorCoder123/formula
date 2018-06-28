@@ -1,0 +1,1871 @@
+domain WebGME
+{
+MetaNode ::= new (name: String).
+MetaEdge ::= new (name: String, src: MetaNode, dst: MetaNode, ms: Multiplicity, md: Multiplicity).
+Multiplicity ::= new (low: Integer, high: Integer + {"*"}).
+
+Node ::= new (name: String, type: MetaNode).
+Edge ::= new (name: String, type: MetaEdge, src: Node, dst: Node).
+
+NodeInheritance ::= new (base: MetaNode, instance: MetaNode + Node).
+NodeInstanceOf ::= (MetaNode, MetaNode + Node).
+NodeInstanceOf(b,i) :- NodeInheritance(b,i).
+NodeInstanceOf(b,i) :- NodeInheritance(b,m), NodeInstanceOf(m,i).
+
+WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
+
+not1 :- n is Node, no {m | m is MetaNode, NodeInstanceOf(m,n)}.
+not2 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.src,e.src)}.
+not3 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.dst,e.dst)}.
+not4a :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), count({s|s is Node, e is Edge (_,m,n,s)}) < m.md.low.
+not4b :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), m.md.high != "*", count({s|s is Node, e is Edge (_,m,n,s)}) > m.md.high.
+
+not5 :- m is MetaEdge, n is Node, NodeInstanceOf(m.src,n), m.md.low != 0, no{e | e is Edge(_,m,n,_)}.
+not6a :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), count({s|s is Node, e is Edge (_,m,s,n)}) < m.ms.low.
+not6b :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), m.ms.high != "*", count({s|s is Node, e is Edge (_,m,s,n)}) > m.ms.high.
+
+not7 :- m is MetaEdge, n is Node, NodeInstanceOf(m.dst,n), m.ms.low != 0, no{e | e is Edge(_,m,_,n)}.
+
+}
+
+
+model Modular_phone of WebGME
+{
+string is MetaNode("string").
+integer is MetaNode("integer").
+float is MetaNode("float").
+boolean is MetaNode("boolean").
+asset is MetaNode("asset").
+
+exactlyOne is Multiplicity(1,1).
+atMostOne is Multiplicity(0,1).
+atLeastOne is Multiplicity(1,"*").
+anyNumber is Multiplicity(0,"*").
+
+FCO is MetaNode("FCO").
+FCO_attr_name is MetaEdge("FCO_attr_name",FCO,string,anyNumber,atMostOne).
+ArchitectureStyle is MetaNode("ArchitectureStyle").
+NodeInheritance(FCO,ArchitectureStyle).
+Projects is MetaNode("Projects").
+Projects_attr_path is MetaEdge("Projects_attr_path",Projects,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Projects).
+ComponentType is MetaNode("ComponentType").
+ComponentType_attr_definitions is MetaEdge("ComponentType_attr_definitions",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_forwards is MetaEdge("ComponentType_attr_forwards",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_constructors is MetaEdge("ComponentType_attr_constructors",ComponentType,string,anyNumber,atMostOne).
+ComponentType_attr_cardinality is MetaEdge("ComponentType_attr_cardinality",ComponentType,string,anyNumber,atMostOne).
+ComponentType_set_associatedWith_md is Multiplicity(0,"*").
+ComponentType_set_associatedWith is MetaEdge("associatedWith",ComponentType,ComponentType,anyNumber,ComponentType_set_associatedWith_md).
+NodeInheritance(FCO,ComponentType).
+TransitionBase is MetaNode("TransitionBase").
+TransitionBase_attr_transitionMethod is MetaEdge("TransitionBase_attr_transitionMethod",TransitionBase,string,anyNumber,atMostOne).
+TransitionBase_attr_guardName is MetaEdge("TransitionBase_attr_guardName",TransitionBase,string,anyNumber,atMostOne).
+TransitionBase_ptr_src_target is MetaNode("TransitionBase_ptr_src_target").
+TransitionBase_ptr_src is MetaEdge("src",TransitionBase,TransitionBase_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(TransitionBase_ptr_src_target,StateBase).
+TransitionBase_ptr_dst_target is MetaNode("TransitionBase_ptr_dst_target").
+TransitionBase_ptr_dst is MetaEdge("dst",TransitionBase,TransitionBase_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(TransitionBase_ptr_dst_target,StateBase).
+NodeInheritance(FCO,TransitionBase).
+EnforceableTransition is MetaNode("EnforceableTransition").
+NodeInheritance(TransitionBase,EnforceableTransition).
+SpontaneousTransition is MetaNode("SpontaneousTransition").
+NodeInheritance(TransitionBase,SpontaneousTransition).
+InternalTransition is MetaNode("InternalTransition").
+NodeInheritance(TransitionBase,InternalTransition).
+Connector is MetaNode("Connector").
+Connector_ptr_src_target is MetaNode("Connector_ptr_src_target").
+Connector_ptr_src is MetaEdge("src",Connector,Connector_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Connector_ptr_src_target,ConnectorEnd).
+Connector_ptr_dst_target is MetaNode("Connector_ptr_dst_target").
+Connector_ptr_dst is MetaEdge("dst",Connector,Connector_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Connector_ptr_dst_target,ConnectorEnd).
+NodeInheritance(Connector_ptr_dst_target,Connector).
+NodeInheritance(FCO,Connector).
+StateBase is MetaNode("StateBase").
+NodeInheritance(FCO,StateBase).
+State is MetaNode("State").
+NodeInheritance(StateBase,State).
+InitialState is MetaNode("InitialState").
+NodeInheritance(StateBase,InitialState).
+Language is MetaNode("Language").
+NodeInheritance(FCO,Language).
+Synchron is MetaNode("Synchron").
+NodeInheritance(ConnectorEnd,Synchron).
+Trigger is MetaNode("Trigger").
+NodeInheritance(ConnectorEnd,Trigger).
+ConnectorEnd is MetaNode("ConnectorEnd").
+ConnectorEnd_attr_multiplicity is MetaEdge("ConnectorEnd_attr_multiplicity",ConnectorEnd,string,anyNumber,atMostOne).
+ConnectorEnd_attr_degree is MetaEdge("ConnectorEnd_attr_degree",ConnectorEnd,string,anyNumber,atMostOne).
+NodeInheritance(FCO,ConnectorEnd).
+Connection is MetaNode("Connection").
+Connection_ptr_dst_target is MetaNode("Connection_ptr_dst_target").
+Connection_ptr_dst is MetaEdge("dst",Connection,Connection_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Connection_ptr_dst_target,ExportPort).
+NodeInheritance(Connection_ptr_dst_target,EnforceableTransition).
+Connection_ptr_src_target is MetaNode("Connection_ptr_src_target").
+Connection_ptr_src is MetaEdge("src",Connection,Connection_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Connection_ptr_src_target,Connector).
+NodeInheritance(Connection_ptr_src_target,ConnectorEnd).
+NodeInheritance(FCO,Connection).
+Project is MetaNode("Project").
+Project_attr_engineOutput is MetaEdge("Project_attr_engineOutput",Project,asset,anyNumber,atMostOne).
+Project_attr_briefDescription is MetaEdge("Project_attr_briefDescription",Project,string,anyNumber,atMostOne).
+Project_attr_detailedDescription is MetaEdge("Project_attr_detailedDescription",Project,string,anyNumber,atMostOne).
+Project_attr_icon is MetaEdge("Project_attr_icon",Project,string,anyNumber,atMostOne).
+Project_attr_authors is MetaEdge("Project_attr_authors",Project,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Project).
+CompoundType is MetaNode("CompoundType").
+CompoundType_attr_cardinality is MetaEdge("CompoundType_attr_cardinality",CompoundType,string,anyNumber,atMostOne).
+NodeInheritance(FCO,CompoundType).
+ExportPort is MetaNode("ExportPort").
+NodeInheritance(FCO,ExportPort).
+ArchitectureStylesLibrary is MetaNode("ArchitectureStylesLibrary").
+NodeInheritance(FCO,ArchitectureStylesLibrary).
+ComponentTypesLibrary is MetaNode("ComponentTypesLibrary").
+NodeInheritance(FCO,ComponentTypesLibrary).
+Guard is MetaNode("Guard").
+Guard_attr_guardMethod is MetaEdge("Guard_attr_guardMethod",Guard,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Guard).
+Documentation is MetaNode("Documentation").
+Documentation_attr_documentation is MetaEdge("Documentation_attr_documentation",Documentation,string,anyNumber,atMostOne).
+NodeInheritance(FCO,Documentation).
+Functional_block is MetaNode("Functional_block").
+Functional_block_attr_cardinality is MetaEdge("Functional_block_attr_cardinality",Functional_block,string,anyNumber,atMostOne).
+Functional_block_set_implementedBy_md is Multiplicity(0,"*").
+Functional_block_set_implementedBy is MetaEdge("implementedBy",Functional_block,ComponentType,anyNumber,Functional_block_set_implementedBy_md).
+NodeInheritance(FCO,Functional_block).
+Functional_View is MetaNode("Functional_View").
+NodeInheritance(FCO,Functional_View).
+Information_Flow is MetaNode("Information_Flow").
+Information_Flow_ptr_src_target is MetaNode("Information_Flow_ptr_src_target").
+Information_Flow_ptr_src is MetaEdge("src",Information_Flow,Information_Flow_ptr_src_target,anyNumber,atMostOne).
+NodeInheritance(Information_Flow_ptr_src_target,Functional_block).
+Information_Flow_ptr_dst_target is MetaNode("Information_Flow_ptr_dst_target").
+Information_Flow_ptr_dst is MetaEdge("dst",Information_Flow,Information_Flow_ptr_dst_target,anyNumber,atMostOne).
+NodeInheritance(Information_Flow_ptr_dst_target,Functional_block).
+NodeInheritance(FCO,Information_Flow).
+
+
+__f_e is Node("/f/e",Project).
+NodeInheritance(Project,__f_e).
+__f_e_attr_name is Edge("name",FCO_attr_name,__f_e,string_0).
+__f_e_attr_engineOutput is Edge("engineOutput",Project_attr_engineOutput,__f_e,asset_0).
+__f_e_attr_briefDescription is Edge("briefDescription",Project_attr_briefDescription,__f_e,string_1).
+__f_e_attr_detailedDescription is Edge("detailedDescription",Project_attr_detailedDescription,__f_e,string_1).
+__f_e_attr_icon is Edge("icon",Project_attr_icon,__f_e,string_1).
+__f_e_attr_authors is Edge("authors",Project_attr_authors,__f_e,string_1).
+
+__f_e_1 is Node("/f/e/1",Connection).
+NodeInheritance(Connection,__f_e_1).
+__f_e_1_attr_name is Edge("name",FCO_attr_name,__f_e_1,string_2).
+__f_e_1_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_1,__f_e_M_y).
+__f_e_1_ptr_src is Edge("src",Connection_ptr_src,__f_e_1,__f_e_Qb).
+
+__f_e_2 is Node("/f/e/2",Connector).
+NodeInheritance(Connector,__f_e_2).
+__f_e_2_attr_name is Edge("name",FCO_attr_name,__f_e_2,string_3).
+__f_e_2_ptr_src is Edge("src",Connector_ptr_src,__f_e_2,__f_e_t1).
+__f_e_2_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_2,__f_e_Y).
+
+__f_e_3 is Node("/f/e/3",Connection).
+NodeInheritance(Connection,__f_e_3).
+__f_e_3_attr_name is Edge("name",FCO_attr_name,__f_e_3,string_2).
+__f_e_3_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_3,__f_e_v_1).
+__f_e_3_ptr_src is Edge("src",Connection_ptr_src,__f_e_3,__f_e_Op).
+
+__f_e_4 is Node("/f/e/4",Connection).
+NodeInheritance(Connection,__f_e_4).
+__f_e_4_attr_name is Edge("name",FCO_attr_name,__f_e_4,string_2).
+__f_e_4_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_4,__f_e_G_t).
+__f_e_4_ptr_src is Edge("src",Connection_ptr_src,__f_e_4,__f_e_J).
+
+__f_e_5 is Node("/f/e/5",Connector).
+NodeInheritance(Connector,__f_e_5).
+__f_e_5_attr_name is Edge("name",FCO_attr_name,__f_e_5,string_3).
+__f_e_5_ptr_src is Edge("src",Connector_ptr_src,__f_e_5,__f_e_y).
+__f_e_5_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_5,__f_e_9).
+
+__f_e_6 is Node("/f/e/6",Connection).
+NodeInheritance(Connection,__f_e_6).
+__f_e_6_attr_name is Edge("name",FCO_attr_name,__f_e_6,string_2).
+__f_e_6_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_6,__f_e_N_A).
+__f_e_6_ptr_src is Edge("src",Connection_ptr_src,__f_e_6,__f_e_j).
+
+__f_e_7 is Node("/f/e/7",Synchron).
+NodeInheritance(Synchron,__f_e_7).
+__f_e_7_attr_name is Edge("name",FCO_attr_name,__f_e_7,string_4).
+__f_e_7_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_7,string_5).
+__f_e_7_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_7,string_5).
+
+__f_e_8 is Node("/f/e/8",ComponentType).
+NodeInheritance(ComponentType,__f_e_8).
+__f_e_8_attr_name is Edge("name",FCO_attr_name,__f_e_8,string_6).
+__f_e_8_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_8,string_7).
+__f_e_8_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_8,string_1).
+__f_e_8_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_8,string_1).
+__f_e_8_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_8,string_5).
+
+__f_e_8_1 is Node("/f/e/8/1",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_8_1).
+__f_e_8_1_attr_name is Edge("name",FCO_attr_name,__f_e_8_1,string_8).
+__f_e_8_1_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_8_1,string_9).
+__f_e_8_1_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_8_1,string_10).
+__f_e_8_1_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_8_1,__f_e_8_Z).
+__f_e_8_1_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_8_1,__f_e_8_w).
+
+__f_e_8_w is Node("/f/e/8/w",State).
+NodeInheritance(State,__f_e_8_w).
+__f_e_8_w_attr_name is Edge("name",FCO_attr_name,__f_e_8_w,string_11).
+
+__f_e_8_M is Node("/f/e/8/M",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_8_M).
+__f_e_8_M_attr_name is Edge("name",FCO_attr_name,__f_e_8_M,string_12).
+__f_e_8_M_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_8_M,string_13).
+__f_e_8_M_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_8_M,string_1).
+__f_e_8_M_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_8_M,__f_e_8_w).
+__f_e_8_M_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_8_M,__f_e_8_Z).
+
+__f_e_8_t is Node("/f/e/8/t",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_8_t).
+__f_e_8_t_attr_name is Edge("name",FCO_attr_name,__f_e_8_t,string_14).
+__f_e_8_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_8_t,string_15).
+__f_e_8_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_8_t,string_1).
+__f_e_8_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_8_t,__f_e_8_Z).
+__f_e_8_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_8_t,__f_e_8_U).
+
+__f_e_8_E is Node("/f/e/8/E",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_8_E).
+__f_e_8_E_attr_name is Edge("name",FCO_attr_name,__f_e_8_E,string_16).
+__f_e_8_E_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_8_E,string_17).
+__f_e_8_E_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_8_E,string_1).
+__f_e_8_E_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_8_E,__f_e_8_U).
+__f_e_8_E_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_8_E,__f_e_8_Z).
+
+__f_e_8_U is Node("/f/e/8/U",InitialState).
+NodeInheritance(InitialState,__f_e_8_U).
+__f_e_8_U_attr_name is Edge("name",FCO_attr_name,__f_e_8_U,string_18).
+
+__f_e_8_Z is Node("/f/e/8/Z",State).
+NodeInheritance(State,__f_e_8_Z).
+__f_e_8_Z_attr_name is Edge("name",FCO_attr_name,__f_e_8_Z,string_5).
+
+__f_e_8_A is Node("/f/e/8/A",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_8_A).
+__f_e_8_A_attr_name is Edge("name",FCO_attr_name,__f_e_8_A,string_19).
+__f_e_8_A_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_8_A,string_20).
+__f_e_8_A_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_8_A,string_1).
+__f_e_8_A_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_8_A,__f_e_8_U).
+__f_e_8_A_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_8_A,__f_e_8_Z).
+
+__f_e_8_g is Node("/f/e/8/g",Guard).
+NodeInheritance(Guard,__f_e_8_g).
+__f_e_8_g_attr_name is Edge("name",FCO_attr_name,__f_e_8_g,string_21).
+__f_e_8_g_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_8_g,string_22).
+
+__f_e_9 is Node("/f/e/9",Synchron).
+NodeInheritance(Synchron,__f_e_9).
+__f_e_9_attr_name is Edge("name",FCO_attr_name,__f_e_9,string_4).
+__f_e_9_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_9,string_5).
+__f_e_9_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_9,string_5).
+
+__f_e_54 is Node("/f/e/54",Connection).
+NodeInheritance(Connection,__f_e_54).
+__f_e_54_attr_name is Edge("name",FCO_attr_name,__f_e_54,string_2).
+__f_e_54_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_54,__f_e_ef_a).
+__f_e_54_ptr_src is Edge("src",Connection_ptr_src,__f_e_54,__f_e_BY).
+
+__f_e_ic is Node("/f/e/ic",Connector).
+NodeInheritance(Connector,__f_e_ic).
+__f_e_ic_attr_name is Edge("name",FCO_attr_name,__f_e_ic,string_3).
+__f_e_ic_ptr_src is Edge("src",Connector_ptr_src,__f_e_ic,__f_e_4W).
+__f_e_ic_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_ic,__f_e_Rc).
+
+__f_e_SI is Node("/f/e/SI",Connector).
+NodeInheritance(Connector,__f_e_SI).
+__f_e_SI_attr_name is Edge("name",FCO_attr_name,__f_e_SI,string_3).
+__f_e_SI_ptr_src is Edge("src",Connector_ptr_src,__f_e_SI,__f_e_vE).
+__f_e_SI_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_SI,__f_e_nC).
+
+__f_e_nk is Node("/f/e/nk",Connector).
+NodeInheritance(Connector,__f_e_nk).
+__f_e_nk_attr_name is Edge("name",FCO_attr_name,__f_e_nk,string_3).
+__f_e_nk_ptr_src is Edge("src",Connector_ptr_src,__f_e_nk,__f_e_6V).
+__f_e_nk_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_nk,__f_e_oV).
+
+__f_e_O is Node("/f/e/O",Connector).
+NodeInheritance(Connector,__f_e_O).
+__f_e_O_attr_name is Edge("name",FCO_attr_name,__f_e_O,string_3).
+__f_e_O_ptr_src is Edge("src",Connector_ptr_src,__f_e_O,__f_e_R6).
+__f_e_O_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_O,__f_e_D9).
+
+__f_e_G is Node("/f/e/G",ComponentType).
+NodeInheritance(ComponentType,__f_e_G).
+__f_e_G_attr_name is Edge("name",FCO_attr_name,__f_e_G,string_23).
+__f_e_G_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_G,string_24).
+__f_e_G_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_G,string_1).
+__f_e_G_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_G,string_25).
+__f_e_G_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_G,string_5).
+
+__f_e_G_0 is Node("/f/e/G/0",Guard).
+NodeInheritance(Guard,__f_e_G_0).
+__f_e_G_0_attr_name is Edge("name",FCO_attr_name,__f_e_G_0,string_26).
+__f_e_G_0_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_G_0,string_27).
+
+__f_e_G_F is Node("/f/e/G/F",InitialState).
+NodeInheritance(InitialState,__f_e_G_F).
+__f_e_G_F_attr_name is Edge("name",FCO_attr_name,__f_e_G_F,string_18).
+
+__f_e_G_H is Node("/f/e/G/H",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_G_H).
+__f_e_G_H_attr_name is Edge("name",FCO_attr_name,__f_e_G_H,string_28).
+__f_e_G_H_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_G_H,string_29).
+__f_e_G_H_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_G_H,string_30).
+__f_e_G_H_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_G_H,__f_e_G_F).
+__f_e_G_H_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_G_H,__f_e_G_F).
+
+__f_e_G_f is Node("/f/e/G/f",Guard).
+NodeInheritance(Guard,__f_e_G_f).
+__f_e_G_f_attr_name is Edge("name",FCO_attr_name,__f_e_G_f,string_30).
+__f_e_G_f_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_G_f,string_31).
+
+__f_e_G_t is Node("/f/e/G/t",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_G_t).
+__f_e_G_t_attr_name is Edge("name",FCO_attr_name,__f_e_G_t,string_32).
+__f_e_G_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_G_t,string_33).
+__f_e_G_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_G_t,string_26).
+__f_e_G_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_G_t,__f_e_G_F).
+__f_e_G_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_G_t,__f_e_G_F).
+
+__f_e_s is Node("/f/e/s",ComponentType).
+NodeInheritance(ComponentType,__f_e_s).
+__f_e_s_attr_name is Edge("name",FCO_attr_name,__f_e_s,string_34).
+__f_e_s_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_s,string_35).
+__f_e_s_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_s,string_1).
+__f_e_s_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_s,string_1).
+__f_e_s_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_s,string_5).
+
+__f_e_s_1 is Node("/f/e/s/1",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_s_1).
+__f_e_s_1_attr_name is Edge("name",FCO_attr_name,__f_e_s_1,string_36).
+__f_e_s_1_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_s_1,string_37).
+__f_e_s_1_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_s_1,string_38).
+__f_e_s_1_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_s_1,__f_e_s_B).
+__f_e_s_1_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_s_1,__f_e_s_B).
+
+__f_e_s_3 is Node("/f/e/s/3",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_s_3).
+__f_e_s_3_attr_name is Edge("name",FCO_attr_name,__f_e_s_3,string_39).
+__f_e_s_3_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_s_3,string_40).
+__f_e_s_3_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_s_3,string_41).
+__f_e_s_3_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_s_3,__f_e_s_B).
+__f_e_s_3_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_s_3,__f_e_s_j).
+
+__f_e_s_T is Node("/f/e/s/T",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_s_T).
+__f_e_s_T_attr_name is Edge("name",FCO_attr_name,__f_e_s_T,string_19).
+__f_e_s_T_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_s_T,string_42).
+__f_e_s_T_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_s_T,string_1).
+__f_e_s_T_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_s_T,__f_e_s_j).
+__f_e_s_T_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_s_T,__f_e_s_B).
+
+__f_e_s_W is Node("/f/e/s/W",Guard).
+NodeInheritance(Guard,__f_e_s_W).
+__f_e_s_W_attr_name is Edge("name",FCO_attr_name,__f_e_s_W,string_43).
+__f_e_s_W_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_s_W,string_44).
+
+__f_e_s_d is Node("/f/e/s/d",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_s_d).
+__f_e_s_d_attr_name is Edge("name",FCO_attr_name,__f_e_s_d,string_45).
+__f_e_s_d_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_s_d,string_46).
+__f_e_s_d_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_s_d,string_47).
+__f_e_s_d_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_s_d,__f_e_s_B).
+__f_e_s_d_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_s_d,__f_e_s_B).
+
+__f_e_s_i is Node("/f/e/s/i",Guard).
+NodeInheritance(Guard,__f_e_s_i).
+__f_e_s_i_attr_name is Edge("name",FCO_attr_name,__f_e_s_i,string_41).
+__f_e_s_i_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_s_i,string_48).
+
+__f_e_s_j is Node("/f/e/s/j",InitialState).
+NodeInheritance(InitialState,__f_e_s_j).
+__f_e_s_j_attr_name is Edge("name",FCO_attr_name,__f_e_s_j,string_18).
+
+__f_e_s_B is Node("/f/e/s/B",State).
+NodeInheritance(State,__f_e_s_B).
+__f_e_s_B_attr_name is Edge("name",FCO_attr_name,__f_e_s_B,string_5).
+
+__f_e_Z is Node("/f/e/Z",ComponentType).
+NodeInheritance(ComponentType,__f_e_Z).
+__f_e_Z_attr_name is Edge("name",FCO_attr_name,__f_e_Z,string_49).
+__f_e_Z_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_Z,string_50).
+__f_e_Z_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_Z,string_1).
+__f_e_Z_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_Z,string_1).
+__f_e_Z_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_Z,string_5).
+
+__f_e_Z_6 is Node("/f/e/Z/6",InitialState).
+NodeInheritance(InitialState,__f_e_Z_6).
+__f_e_Z_6_attr_name is Edge("name",FCO_attr_name,__f_e_Z_6,string_18).
+
+__f_e_Z_Y is Node("/f/e/Z/Y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_Z_Y).
+__f_e_Z_Y_attr_name is Edge("name",FCO_attr_name,__f_e_Z_Y,string_51).
+__f_e_Z_Y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_Z_Y,string_52).
+__f_e_Z_Y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_Z_Y,string_1).
+__f_e_Z_Y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_Z_Y,__f_e_Z_C).
+__f_e_Z_Y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_Z_Y,__f_e_Z_6).
+
+__f_e_Z_C is Node("/f/e/Z/C",State).
+NodeInheritance(State,__f_e_Z_C).
+__f_e_Z_C_attr_name is Edge("name",FCO_attr_name,__f_e_Z_C,string_5).
+
+__f_e_Z_R is Node("/f/e/Z/R",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_Z_R).
+__f_e_Z_R_attr_name is Edge("name",FCO_attr_name,__f_e_Z_R,string_53).
+__f_e_Z_R_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_Z_R,string_54).
+__f_e_Z_R_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_Z_R,string_1).
+__f_e_Z_R_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_Z_R,__f_e_Z_6).
+__f_e_Z_R_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_Z_R,__f_e_Z_C).
+
+__f_e_q is Node("/f/e/q",ComponentType).
+NodeInheritance(ComponentType,__f_e_q).
+__f_e_q_attr_name is Edge("name",FCO_attr_name,__f_e_q,string_55).
+__f_e_q_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_q,string_56).
+__f_e_q_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_q,string_1).
+__f_e_q_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_q,string_1).
+__f_e_q_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_q,string_5).
+
+__f_e_q_K is Node("/f/e/q/K",InitialState).
+NodeInheritance(InitialState,__f_e_q_K).
+__f_e_q_K_attr_name is Edge("name",FCO_attr_name,__f_e_q_K,string_18).
+
+__f_e_q_h is Node("/f/e/q/h",State).
+NodeInheritance(State,__f_e_q_h).
+__f_e_q_h_attr_name is Edge("name",FCO_attr_name,__f_e_q_h,string_5).
+
+__f_e_q_k is Node("/f/e/q/k",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_q_k).
+__f_e_q_k_attr_name is Edge("name",FCO_attr_name,__f_e_q_k,string_57).
+__f_e_q_k_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_q_k,string_58).
+__f_e_q_k_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_q_k,string_1).
+__f_e_q_k_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_q_k,__f_e_q_K).
+__f_e_q_k_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_q_k,__f_e_q_h).
+
+__f_e_q_r is Node("/f/e/q/r",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_q_r).
+__f_e_q_r_attr_name is Edge("name",FCO_attr_name,__f_e_q_r,string_39).
+__f_e_q_r_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_q_r,string_59).
+__f_e_q_r_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_q_r,string_1).
+__f_e_q_r_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_q_r,__f_e_q_h).
+__f_e_q_r_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_q_r,__f_e_q_K).
+
+__f_e_J is Node("/f/e/J",Synchron).
+NodeInheritance(Synchron,__f_e_J).
+__f_e_J_attr_name is Edge("name",FCO_attr_name,__f_e_J,string_4).
+__f_e_J_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_J,string_5).
+__f_e_J_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_J,string_5).
+
+__f_e_Fy is Node("/f/e/Fy",Connector).
+NodeInheritance(Connector,__f_e_Fy).
+__f_e_Fy_attr_name is Edge("name",FCO_attr_name,__f_e_Fy,string_3).
+__f_e_Fy_ptr_src is Edge("src",Connector_ptr_src,__f_e_Fy,__f_e_mf).
+__f_e_Fy_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_Fy,__f_e_Gy).
+
+__f_e_P is Node("/f/e/P",Synchron).
+NodeInheritance(Synchron,__f_e_P).
+__f_e_P_attr_name is Edge("name",FCO_attr_name,__f_e_P,string_4).
+__f_e_P_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_P,string_5).
+__f_e_P_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_P,string_5).
+
+__f_e_X is Node("/f/e/X",Connection).
+NodeInheritance(Connection,__f_e_X).
+__f_e_X_attr_name is Edge("name",FCO_attr_name,__f_e_X,string_2).
+__f_e_X_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_X,__f_e_Z_R).
+__f_e_X_ptr_src is Edge("src",Connection_ptr_src,__f_e_X,__f_e_P).
+
+__f_e_r is Node("/f/e/r",Synchron).
+NodeInheritance(Synchron,__f_e_r).
+__f_e_r_attr_name is Edge("name",FCO_attr_name,__f_e_r,string_4).
+__f_e_r_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_r,string_5).
+__f_e_r_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_r,string_5).
+
+__f_e_R is Node("/f/e/R",Connection).
+NodeInheritance(Connection,__f_e_R).
+__f_e_R_attr_name is Edge("name",FCO_attr_name,__f_e_R,string_2).
+__f_e_R_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_R,__f_e_G_H).
+__f_e_R_ptr_src is Edge("src",Connection_ptr_src,__f_e_R,__f_e_r).
+
+__f_e_y is Node("/f/e/y",Synchron).
+NodeInheritance(Synchron,__f_e_y).
+__f_e_y_attr_name is Edge("name",FCO_attr_name,__f_e_y,string_4).
+__f_e_y_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_y,string_5).
+__f_e_y_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_y,string_5).
+
+__f_e_GL is Node("/f/e/GL",Connection).
+NodeInheritance(Connection,__f_e_GL).
+__f_e_GL_attr_name is Edge("name",FCO_attr_name,__f_e_GL,string_2).
+__f_e_GL_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_GL,__f_e_q_k).
+__f_e_GL_ptr_src is Edge("src",Connection_ptr_src,__f_e_GL,__f_e_y).
+
+__f_e_b is Node("/f/e/b",Synchron).
+NodeInheritance(Synchron,__f_e_b).
+__f_e_b_attr_name is Edge("name",FCO_attr_name,__f_e_b,string_4).
+__f_e_b_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_b,string_5).
+__f_e_b_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_b,string_5).
+
+__f_e_B is Node("/f/e/B",Connection).
+NodeInheritance(Connection,__f_e_B).
+__f_e_B_attr_name is Edge("name",FCO_attr_name,__f_e_B,string_2).
+__f_e_B_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_B,__f_e_s_T).
+__f_e_B_ptr_src is Edge("src",Connection_ptr_src,__f_e_B,__f_e_b).
+
+__f_e_t is Node("/f/e/t",Connection).
+NodeInheritance(Connection,__f_e_t).
+__f_e_t_attr_name is Edge("name",FCO_attr_name,__f_e_t,string_2).
+__f_e_t_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_t,__f_e_s_d).
+__f_e_t_ptr_src is Edge("src",Connection_ptr_src,__f_e_t,__f_e_9).
+
+__f_e_A is Node("/f/e/A",Synchron).
+NodeInheritance(Synchron,__f_e_A).
+__f_e_A_attr_name is Edge("name",FCO_attr_name,__f_e_A,string_4).
+__f_e_A_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_A,string_5).
+__f_e_A_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_A,string_5).
+
+__f_e_KC is Node("/f/e/KC",Connection).
+NodeInheritance(Connection,__f_e_KC).
+__f_e_KC_attr_name is Edge("name",FCO_attr_name,__f_e_KC,string_2).
+__f_e_KC_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_KC,__f_e_s_1).
+__f_e_KC_ptr_src is Edge("src",Connection_ptr_src,__f_e_KC,__f_e_A).
+
+__f_e_g is Node("/f/e/g",Connector).
+NodeInheritance(Connector,__f_e_g).
+__f_e_g_attr_name is Edge("name",FCO_attr_name,__f_e_g,string_3).
+__f_e_g_ptr_src is Edge("src",Connector_ptr_src,__f_e_g,__f_e_b).
+__f_e_g_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_g,__f_e_J).
+
+__f_e_Q is Node("/f/e/Q",Connector).
+NodeInheritance(Connector,__f_e_Q).
+__f_e_Q_attr_name is Edge("name",FCO_attr_name,__f_e_Q,string_3).
+__f_e_Q_ptr_src is Edge("src",Connector_ptr_src,__f_e_Q,__f_e_A).
+__f_e_Q_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_Q,__f_e_P).
+
+__f_e_d is Node("/f/e/d",ComponentType).
+NodeInheritance(ComponentType,__f_e_d).
+__f_e_d_attr_name is Edge("name",FCO_attr_name,__f_e_d,string_60).
+__f_e_d_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_d,string_7).
+__f_e_d_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_d,string_1).
+__f_e_d_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_d,string_1).
+__f_e_d_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_d,string_5).
+
+__f_e_d_1 is Node("/f/e/d/1",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_d_1).
+__f_e_d_1_attr_name is Edge("name",FCO_attr_name,__f_e_d_1,string_8).
+__f_e_d_1_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_d_1,string_9).
+__f_e_d_1_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_d_1,string_10).
+__f_e_d_1_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_d_1,__f_e_d_Z).
+__f_e_d_1_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_d_1,__f_e_d_w).
+
+__f_e_d_w is Node("/f/e/d/w",State).
+NodeInheritance(State,__f_e_d_w).
+__f_e_d_w_attr_name is Edge("name",FCO_attr_name,__f_e_d_w,string_11).
+
+__f_e_d_M is Node("/f/e/d/M",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_d_M).
+__f_e_d_M_attr_name is Edge("name",FCO_attr_name,__f_e_d_M,string_12).
+__f_e_d_M_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_d_M,string_13).
+__f_e_d_M_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_d_M,string_1).
+__f_e_d_M_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_d_M,__f_e_d_w).
+__f_e_d_M_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_d_M,__f_e_d_Z).
+
+__f_e_d_t is Node("/f/e/d/t",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_d_t).
+__f_e_d_t_attr_name is Edge("name",FCO_attr_name,__f_e_d_t,string_14).
+__f_e_d_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_d_t,string_15).
+__f_e_d_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_d_t,string_1).
+__f_e_d_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_d_t,__f_e_d_Z).
+__f_e_d_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_d_t,__f_e_d_U).
+
+__f_e_d_E is Node("/f/e/d/E",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_d_E).
+__f_e_d_E_attr_name is Edge("name",FCO_attr_name,__f_e_d_E,string_16).
+__f_e_d_E_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_d_E,string_17).
+__f_e_d_E_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_d_E,string_1).
+__f_e_d_E_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_d_E,__f_e_d_U).
+__f_e_d_E_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_d_E,__f_e_d_Z).
+
+__f_e_d_U is Node("/f/e/d/U",InitialState).
+NodeInheritance(InitialState,__f_e_d_U).
+__f_e_d_U_attr_name is Edge("name",FCO_attr_name,__f_e_d_U,string_18).
+
+__f_e_d_Z is Node("/f/e/d/Z",State).
+NodeInheritance(State,__f_e_d_Z).
+__f_e_d_Z_attr_name is Edge("name",FCO_attr_name,__f_e_d_Z,string_5).
+
+__f_e_d_A is Node("/f/e/d/A",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_d_A).
+__f_e_d_A_attr_name is Edge("name",FCO_attr_name,__f_e_d_A,string_19).
+__f_e_d_A_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_d_A,string_20).
+__f_e_d_A_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_d_A,string_1).
+__f_e_d_A_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_d_A,__f_e_d_U).
+__f_e_d_A_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_d_A,__f_e_d_Z).
+
+__f_e_d_g is Node("/f/e/d/g",Guard).
+NodeInheritance(Guard,__f_e_d_g).
+__f_e_d_g_attr_name is Edge("name",FCO_attr_name,__f_e_d_g,string_21).
+__f_e_d_g_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_d_g,string_22).
+
+__f_e_F is Node("/f/e/F",Synchron).
+NodeInheritance(Synchron,__f_e_F).
+__f_e_F_attr_name is Edge("name",FCO_attr_name,__f_e_F,string_4).
+__f_e_F_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_F,string_5).
+__f_e_F_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_F,string_5).
+
+__f_e_L is Node("/f/e/L",Connection).
+NodeInheritance(Connection,__f_e_L).
+__f_e_L_attr_name is Edge("name",FCO_attr_name,__f_e_L,string_2).
+__f_e_L_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_L,__f_e_Z_Y).
+__f_e_L_ptr_src is Edge("src",Connection_ptr_src,__f_e_L,__f_e_F).
+
+__f_e_H is Node("/f/e/H",Synchron).
+NodeInheritance(Synchron,__f_e_H).
+__f_e_H_attr_name is Edge("name",FCO_attr_name,__f_e_H,string_4).
+__f_e_H_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_H,string_5).
+__f_e_H_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_H,string_5).
+
+__f_e_o is Node("/f/e/o",Connection).
+NodeInheritance(Connection,__f_e_o).
+__f_e_o_attr_name is Edge("name",FCO_attr_name,__f_e_o,string_2).
+__f_e_o_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_o,__f_e_Z_Y).
+__f_e_o_ptr_src is Edge("src",Connection_ptr_src,__f_e_o,__f_e_H).
+
+__f_e_w is Node("/f/e/w",Synchron).
+NodeInheritance(Synchron,__f_e_w).
+__f_e_w_attr_name is Edge("name",FCO_attr_name,__f_e_w,string_4).
+__f_e_w_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_w,string_5).
+__f_e_w_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_w,string_5).
+
+__f_e_h is Node("/f/e/h",Connection).
+NodeInheritance(Connection,__f_e_h).
+__f_e_h_attr_name is Edge("name",FCO_attr_name,__f_e_h,string_2).
+__f_e_h_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_h,__f_e_Z_Y).
+__f_e_h_ptr_src is Edge("src",Connection_ptr_src,__f_e_h,__f_e_w).
+
+__f_e_e is Node("/f/e/e",Synchron).
+NodeInheritance(Synchron,__f_e_e).
+__f_e_e_attr_name is Edge("name",FCO_attr_name,__f_e_e,string_4).
+__f_e_e_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_e,string_5).
+__f_e_e_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_e,string_5).
+
+__f_e_rl is Node("/f/e/rl",Connection).
+NodeInheritance(Connection,__f_e_rl).
+__f_e_rl_attr_name is Edge("name",FCO_attr_name,__f_e_rl,string_2).
+__f_e_rl_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_rl,__f_e_Z_Y).
+__f_e_rl_ptr_src is Edge("src",Connection_ptr_src,__f_e_rl,__f_e_e).
+
+__f_e_IT is Node("/f/e/IT",Synchron).
+NodeInheritance(Synchron,__f_e_IT).
+__f_e_IT_attr_name is Edge("name",FCO_attr_name,__f_e_IT,string_4).
+__f_e_IT_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_IT,string_5).
+__f_e_IT_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_IT,string_5).
+
+__f_e_x is Node("/f/e/x",Connection).
+NodeInheritance(Connection,__f_e_x).
+__f_e_x_attr_name is Edge("name",FCO_attr_name,__f_e_x,string_2).
+__f_e_x_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_x,__f_e_d_A).
+__f_e_x_ptr_src is Edge("src",Connection_ptr_src,__f_e_x,__f_e_IT).
+
+__f_e_1y is Node("/f/e/1y",Connector).
+NodeInheritance(Connector,__f_e_1y).
+__f_e_1y_attr_name is Edge("name",FCO_attr_name,__f_e_1y,string_3).
+__f_e_1y_ptr_src is Edge("src",Connector_ptr_src,__f_e_1y,__f_e_IT).
+__f_e_1y_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_1y,__f_e_F).
+
+__f_e_f is Node("/f/e/f",Synchron).
+NodeInheritance(Synchron,__f_e_f).
+__f_e_f_attr_name is Edge("name",FCO_attr_name,__f_e_f,string_4).
+__f_e_f_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_f,string_5).
+__f_e_f_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_f,string_5).
+
+__f_e_C is Node("/f/e/C",Connection).
+NodeInheritance(Connection,__f_e_C).
+__f_e_C_attr_name is Edge("name",FCO_attr_name,__f_e_C,string_2).
+__f_e_C_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_C,__f_e_d_t).
+__f_e_C_ptr_src is Edge("src",Connection_ptr_src,__f_e_C,__f_e_f).
+
+__f_e_u is Node("/f/e/u",Synchron).
+NodeInheritance(Synchron,__f_e_u).
+__f_e_u_attr_name is Edge("name",FCO_attr_name,__f_e_u,string_4).
+__f_e_u_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_u,string_5).
+__f_e_u_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_u,string_5).
+
+__f_e_n is Node("/f/e/n",Connection).
+NodeInheritance(Connection,__f_e_n).
+__f_e_n_attr_name is Edge("name",FCO_attr_name,__f_e_n,string_2).
+__f_e_n_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_n,__f_e_G_H).
+__f_e_n_ptr_src is Edge("src",Connection_ptr_src,__f_e_n,__f_e_u).
+
+__f_e_i is Node("/f/e/i",Synchron).
+NodeInheritance(Synchron,__f_e_i).
+__f_e_i_attr_name is Edge("name",FCO_attr_name,__f_e_i,string_4).
+__f_e_i_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_i,string_5).
+__f_e_i_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_i,string_5).
+
+__f_e_K is Node("/f/e/K",Connection).
+NodeInheritance(Connection,__f_e_K).
+__f_e_K_attr_name is Edge("name",FCO_attr_name,__f_e_K,string_2).
+__f_e_K_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_K,__f_e_G_H).
+__f_e_K_ptr_src is Edge("src",Connection_ptr_src,__f_e_K,__f_e_i).
+
+__f_e_Y is Node("/f/e/Y",Synchron).
+NodeInheritance(Synchron,__f_e_Y).
+__f_e_Y_attr_name is Edge("name",FCO_attr_name,__f_e_Y,string_4).
+__f_e_Y_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Y,string_5).
+__f_e_Y_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Y,string_5).
+
+__f_e_S is Node("/f/e/S",Connection).
+NodeInheritance(Connection,__f_e_S).
+__f_e_S_attr_name is Edge("name",FCO_attr_name,__f_e_S,string_2).
+__f_e_S_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_S,__f_e_G_H).
+__f_e_S_ptr_src is Edge("src",Connection_ptr_src,__f_e_S,__f_e_Y).
+
+__f_e_N is Node("/f/e/N",ComponentType).
+NodeInheritance(ComponentType,__f_e_N).
+__f_e_N_attr_name is Edge("name",FCO_attr_name,__f_e_N,string_61).
+__f_e_N_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_N,string_7).
+__f_e_N_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_N,string_1).
+__f_e_N_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_N,string_1).
+__f_e_N_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_N,string_5).
+
+__f_e_N_1 is Node("/f/e/N/1",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_N_1).
+__f_e_N_1_attr_name is Edge("name",FCO_attr_name,__f_e_N_1,string_8).
+__f_e_N_1_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_N_1,string_9).
+__f_e_N_1_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_N_1,string_10).
+__f_e_N_1_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_N_1,__f_e_N_Z).
+__f_e_N_1_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_N_1,__f_e_N_w).
+
+__f_e_N_w is Node("/f/e/N/w",State).
+NodeInheritance(State,__f_e_N_w).
+__f_e_N_w_attr_name is Edge("name",FCO_attr_name,__f_e_N_w,string_11).
+
+__f_e_N_M is Node("/f/e/N/M",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_N_M).
+__f_e_N_M_attr_name is Edge("name",FCO_attr_name,__f_e_N_M,string_12).
+__f_e_N_M_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_N_M,string_13).
+__f_e_N_M_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_N_M,string_1).
+__f_e_N_M_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_N_M,__f_e_N_w).
+__f_e_N_M_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_N_M,__f_e_N_Z).
+
+__f_e_N_t is Node("/f/e/N/t",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_N_t).
+__f_e_N_t_attr_name is Edge("name",FCO_attr_name,__f_e_N_t,string_14).
+__f_e_N_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_N_t,string_15).
+__f_e_N_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_N_t,string_1).
+__f_e_N_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_N_t,__f_e_N_Z).
+__f_e_N_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_N_t,__f_e_N_U).
+
+__f_e_N_E is Node("/f/e/N/E",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_N_E).
+__f_e_N_E_attr_name is Edge("name",FCO_attr_name,__f_e_N_E,string_16).
+__f_e_N_E_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_N_E,string_17).
+__f_e_N_E_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_N_E,string_1).
+__f_e_N_E_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_N_E,__f_e_N_U).
+__f_e_N_E_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_N_E,__f_e_N_Z).
+
+__f_e_N_U is Node("/f/e/N/U",InitialState).
+NodeInheritance(InitialState,__f_e_N_U).
+__f_e_N_U_attr_name is Edge("name",FCO_attr_name,__f_e_N_U,string_18).
+
+__f_e_N_Z is Node("/f/e/N/Z",State).
+NodeInheritance(State,__f_e_N_Z).
+__f_e_N_Z_attr_name is Edge("name",FCO_attr_name,__f_e_N_Z,string_5).
+
+__f_e_N_A is Node("/f/e/N/A",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_N_A).
+__f_e_N_A_attr_name is Edge("name",FCO_attr_name,__f_e_N_A,string_19).
+__f_e_N_A_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_N_A,string_20).
+__f_e_N_A_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_N_A,string_1).
+__f_e_N_A_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_N_A,__f_e_N_U).
+__f_e_N_A_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_N_A,__f_e_N_Z).
+
+__f_e_N_g is Node("/f/e/N/g",Guard).
+NodeInheritance(Guard,__f_e_N_g).
+__f_e_N_g_attr_name is Edge("name",FCO_attr_name,__f_e_N_g,string_21).
+__f_e_N_g_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_N_g,string_22).
+
+__f_e_v is Node("/f/e/v",ComponentType).
+NodeInheritance(ComponentType,__f_e_v).
+__f_e_v_attr_name is Edge("name",FCO_attr_name,__f_e_v,string_62).
+__f_e_v_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_v,string_7).
+__f_e_v_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_v,string_1).
+__f_e_v_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_v,string_1).
+__f_e_v_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_v,string_5).
+
+__f_e_v_1 is Node("/f/e/v/1",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_v_1).
+__f_e_v_1_attr_name is Edge("name",FCO_attr_name,__f_e_v_1,string_8).
+__f_e_v_1_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_v_1,string_9).
+__f_e_v_1_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_v_1,string_10).
+__f_e_v_1_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_v_1,__f_e_v_Z).
+__f_e_v_1_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_v_1,__f_e_v_w).
+
+__f_e_v_w is Node("/f/e/v/w",State).
+NodeInheritance(State,__f_e_v_w).
+__f_e_v_w_attr_name is Edge("name",FCO_attr_name,__f_e_v_w,string_11).
+
+__f_e_v_M is Node("/f/e/v/M",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_v_M).
+__f_e_v_M_attr_name is Edge("name",FCO_attr_name,__f_e_v_M,string_12).
+__f_e_v_M_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_v_M,string_13).
+__f_e_v_M_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_v_M,string_1).
+__f_e_v_M_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_v_M,__f_e_v_w).
+__f_e_v_M_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_v_M,__f_e_v_Z).
+
+__f_e_v_t is Node("/f/e/v/t",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_v_t).
+__f_e_v_t_attr_name is Edge("name",FCO_attr_name,__f_e_v_t,string_14).
+__f_e_v_t_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_v_t,string_15).
+__f_e_v_t_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_v_t,string_1).
+__f_e_v_t_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_v_t,__f_e_v_Z).
+__f_e_v_t_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_v_t,__f_e_v_U).
+
+__f_e_v_E is Node("/f/e/v/E",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_v_E).
+__f_e_v_E_attr_name is Edge("name",FCO_attr_name,__f_e_v_E,string_16).
+__f_e_v_E_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_v_E,string_17).
+__f_e_v_E_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_v_E,string_1).
+__f_e_v_E_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_v_E,__f_e_v_U).
+__f_e_v_E_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_v_E,__f_e_v_Z).
+
+__f_e_v_U is Node("/f/e/v/U",InitialState).
+NodeInheritance(InitialState,__f_e_v_U).
+__f_e_v_U_attr_name is Edge("name",FCO_attr_name,__f_e_v_U,string_18).
+
+__f_e_v_Z is Node("/f/e/v/Z",State).
+NodeInheritance(State,__f_e_v_Z).
+__f_e_v_Z_attr_name is Edge("name",FCO_attr_name,__f_e_v_Z,string_5).
+
+__f_e_v_A is Node("/f/e/v/A",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_v_A).
+__f_e_v_A_attr_name is Edge("name",FCO_attr_name,__f_e_v_A,string_19).
+__f_e_v_A_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_v_A,string_20).
+__f_e_v_A_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_v_A,string_1).
+__f_e_v_A_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_v_A,__f_e_v_U).
+__f_e_v_A_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_v_A,__f_e_v_Z).
+
+__f_e_v_g is Node("/f/e/v/g",Guard).
+NodeInheritance(Guard,__f_e_v_g).
+__f_e_v_g_attr_name is Edge("name",FCO_attr_name,__f_e_v_g,string_21).
+__f_e_v_g_attr_guardMethod is Edge("guardMethod",Guard_attr_guardMethod,__f_e_v_g,string_22).
+
+__f_e_LP is Node("/f/e/LP",Synchron).
+NodeInheritance(Synchron,__f_e_LP).
+__f_e_LP_attr_name is Edge("name",FCO_attr_name,__f_e_LP,string_4).
+__f_e_LP_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_LP,string_5).
+__f_e_LP_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_LP,string_5).
+
+__f_e_kj is Node("/f/e/kj",Connection).
+NodeInheritance(Connection,__f_e_kj).
+__f_e_kj_attr_name is Edge("name",FCO_attr_name,__f_e_kj,string_2).
+__f_e_kj_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_kj,__f_e_8_A).
+__f_e_kj_ptr_src is Edge("src",Connection_ptr_src,__f_e_kj,__f_e_LP).
+
+__f_e_R5 is Node("/f/e/R5",Connector).
+NodeInheritance(Connector,__f_e_R5).
+__f_e_R5_attr_name is Edge("name",FCO_attr_name,__f_e_R5,string_3).
+__f_e_R5_ptr_src is Edge("src",Connector_ptr_src,__f_e_R5,__f_e_LP).
+__f_e_R5_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_R5,__f_e_H).
+
+__f_e_EX is Node("/f/e/EX",Synchron).
+NodeInheritance(Synchron,__f_e_EX).
+__f_e_EX_attr_name is Edge("name",FCO_attr_name,__f_e_EX,string_4).
+__f_e_EX_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_EX,string_5).
+__f_e_EX_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_EX,string_5).
+
+__f_e_p is Node("/f/e/p",Connection).
+NodeInheritance(Connection,__f_e_p).
+__f_e_p_attr_name is Edge("name",FCO_attr_name,__f_e_p,string_2).
+__f_e_p_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_p,__f_e_v_A).
+__f_e_p_ptr_src is Edge("src",Connection_ptr_src,__f_e_p,__f_e_EX).
+
+__f_e_xE is Node("/f/e/xE",Connector).
+NodeInheritance(Connector,__f_e_xE).
+__f_e_xE_attr_name is Edge("name",FCO_attr_name,__f_e_xE,string_3).
+__f_e_xE_ptr_src is Edge("src",Connector_ptr_src,__f_e_xE,__f_e_EX).
+__f_e_xE_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_xE,__f_e_e).
+
+__f_e_j is Node("/f/e/j",Synchron).
+NodeInheritance(Synchron,__f_e_j).
+__f_e_j_attr_name is Edge("name",FCO_attr_name,__f_e_j,string_4).
+__f_e_j_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_j,string_5).
+__f_e_j_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_j,string_5).
+
+__f_e_c is Node("/f/e/c",Connector).
+NodeInheritance(Connector,__f_e_c).
+__f_e_c_attr_name is Edge("name",FCO_attr_name,__f_e_c,string_3).
+__f_e_c_ptr_src is Edge("src",Connector_ptr_src,__f_e_c,__f_e_j).
+__f_e_c_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_c,__f_e_w).
+
+__f_e_D is Node("/f/e/D",Connector).
+NodeInheritance(Connector,__f_e_D).
+__f_e_D_attr_name is Edge("name",FCO_attr_name,__f_e_D,string_3).
+__f_e_D_ptr_src is Edge("src",Connector_ptr_src,__f_e_D,__f_e_f).
+__f_e_D_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_D,__f_e_r).
+
+__f_e_KY is Node("/f/e/KY",Synchron).
+NodeInheritance(Synchron,__f_e_KY).
+__f_e_KY_attr_name is Edge("name",FCO_attr_name,__f_e_KY,string_4).
+__f_e_KY_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_KY,string_5).
+__f_e_KY_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_KY,string_5).
+
+__f_e_Lf is Node("/f/e/Lf",Connection).
+NodeInheritance(Connection,__f_e_Lf).
+__f_e_Lf_attr_name is Edge("name",FCO_attr_name,__f_e_Lf,string_2).
+__f_e_Lf_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Lf,__f_e_8_t).
+__f_e_Lf_ptr_src is Edge("src",Connection_ptr_src,__f_e_Lf,__f_e_KY).
+
+__f_e_a is Node("/f/e/a",Connector).
+NodeInheritance(Connector,__f_e_a).
+__f_e_a_attr_name is Edge("name",FCO_attr_name,__f_e_a,string_3).
+__f_e_a_ptr_src is Edge("src",Connector_ptr_src,__f_e_a,__f_e_KY).
+__f_e_a_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_a,__f_e_i).
+
+__f_e_gb is Node("/f/e/gb",Connection).
+NodeInheritance(Connection,__f_e_gb).
+__f_e_gb_attr_name is Edge("name",FCO_attr_name,__f_e_gb,string_2).
+__f_e_gb_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_gb,__f_e_v_t).
+__f_e_gb_ptr_src is Edge("src",Connection_ptr_src,__f_e_gb,__f_e_7).
+
+__f_e_m is Node("/f/e/m",Connector).
+NodeInheritance(Connector,__f_e_m).
+__f_e_m_attr_name is Edge("name",FCO_attr_name,__f_e_m,string_3).
+__f_e_m_ptr_src is Edge("src",Connector_ptr_src,__f_e_m,__f_e_7).
+__f_e_m_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_m,__f_e_u).
+
+__f_e_t1 is Node("/f/e/t1",Synchron).
+NodeInheritance(Synchron,__f_e_t1).
+__f_e_t1_attr_name is Edge("name",FCO_attr_name,__f_e_t1,string_4).
+__f_e_t1_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_t1,string_5).
+__f_e_t1_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_t1,string_5).
+
+__f_e_l is Node("/f/e/l",Connection).
+NodeInheritance(Connection,__f_e_l).
+__f_e_l_attr_name is Edge("name",FCO_attr_name,__f_e_l,string_2).
+__f_e_l_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_l,__f_e_N_t).
+__f_e_l_ptr_src is Edge("src",Connection_ptr_src,__f_e_l,__f_e_t1).
+
+__f_e_M is Node("/f/e/M",ComponentType).
+NodeInheritance(ComponentType,__f_e_M).
+__f_e_M_attr_name is Edge("name",FCO_attr_name,__f_e_M,string_63).
+__f_e_M_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_M,string_1).
+__f_e_M_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_M,string_1).
+__f_e_M_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_M,string_50).
+__f_e_M_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_M,string_64).
+
+__f_e_M_5 is Node("/f/e/M/5",State).
+NodeInheritance(State,__f_e_M_5).
+__f_e_M_5_attr_name is Edge("name",FCO_attr_name,__f_e_M_5,string_11).
+
+__f_e_M_b is Node("/f/e/M/b",State).
+NodeInheritance(State,__f_e_M_b).
+__f_e_M_b_attr_name is Edge("name",FCO_attr_name,__f_e_M_b,string_5).
+
+__f_e_M_a is Node("/f/e/M/a",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_M_a).
+__f_e_M_a_attr_name is Edge("name",FCO_attr_name,__f_e_M_a,string_65).
+__f_e_M_a_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_M_a,string_66).
+__f_e_M_a_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_M_a,string_1).
+__f_e_M_a_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_M_a,__f_e_M_t).
+__f_e_M_a_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_M_a,__f_e_M_b).
+
+__f_e_M_y is Node("/f/e/M/y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_M_y).
+__f_e_M_y_attr_name is Edge("name",FCO_attr_name,__f_e_M_y,string_36).
+__f_e_M_y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_M_y,string_67).
+__f_e_M_y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_M_y,string_1).
+__f_e_M_y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_M_y,__f_e_M_5).
+__f_e_M_y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_M_y,__f_e_M_t).
+
+__f_e_M_z is Node("/f/e/M/z",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_M_z).
+__f_e_M_z_attr_name is Edge("name",FCO_attr_name,__f_e_M_z,string_39).
+__f_e_M_z_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_M_z,string_68).
+__f_e_M_z_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_M_z,string_1).
+__f_e_M_z_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_M_z,__f_e_M_b).
+__f_e_M_z_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_M_z,__f_e_M_5).
+
+__f_e_M_t is Node("/f/e/M/t",InitialState).
+NodeInheritance(InitialState,__f_e_M_t).
+__f_e_M_t_attr_name is Edge("name",FCO_attr_name,__f_e_M_t,string_18).
+
+__f_e_cM is Node("/f/e/cM",ComponentType).
+NodeInheritance(ComponentType,__f_e_cM).
+__f_e_cM_attr_name is Edge("name",FCO_attr_name,__f_e_cM,string_69).
+__f_e_cM_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_cM,string_1).
+__f_e_cM_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_cM,string_1).
+__f_e_cM_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_cM,string_50).
+__f_e_cM_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_cM,string_70).
+
+__f_e_cM_V is Node("/f/e/cM/V",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_cM_V).
+__f_e_cM_V_attr_name is Edge("name",FCO_attr_name,__f_e_cM_V,string_71).
+__f_e_cM_V_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_cM_V,string_72).
+__f_e_cM_V_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_cM_V,string_1).
+__f_e_cM_V_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_cM_V,__f_e_cM_t).
+__f_e_cM_V_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_cM_V,__f_e_cM_t).
+
+__f_e_cM_t is Node("/f/e/cM/t",InitialState).
+NodeInheritance(InitialState,__f_e_cM_t).
+__f_e_cM_t_attr_name is Edge("name",FCO_attr_name,__f_e_cM_t,string_18).
+
+__f_e_cM_d is Node("/f/e/cM/d",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_cM_d).
+__f_e_cM_d_attr_name is Edge("name",FCO_attr_name,__f_e_cM_d,string_73).
+__f_e_cM_d_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_cM_d,string_74).
+__f_e_cM_d_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_cM_d,string_1).
+__f_e_cM_d_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_cM_d,__f_e_cM_t).
+__f_e_cM_d_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_cM_d,__f_e_cM_t).
+
+__f_e_ef is Node("/f/e/ef",ComponentType).
+NodeInheritance(ComponentType,__f_e_ef).
+__f_e_ef_attr_name is Edge("name",FCO_attr_name,__f_e_ef,string_75).
+__f_e_ef_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_ef,string_1).
+__f_e_ef_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_ef,string_1).
+__f_e_ef_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_ef,string_50).
+__f_e_ef_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_ef,string_70).
+
+__f_e_ef_5 is Node("/f/e/ef/5",State).
+NodeInheritance(State,__f_e_ef_5).
+__f_e_ef_5_attr_name is Edge("name",FCO_attr_name,__f_e_ef_5,string_11).
+
+__f_e_ef_b is Node("/f/e/ef/b",State).
+NodeInheritance(State,__f_e_ef_b).
+__f_e_ef_b_attr_name is Edge("name",FCO_attr_name,__f_e_ef_b,string_5).
+
+__f_e_ef_a is Node("/f/e/ef/a",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_ef_a).
+__f_e_ef_a_attr_name is Edge("name",FCO_attr_name,__f_e_ef_a,string_65).
+__f_e_ef_a_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_ef_a,string_66).
+__f_e_ef_a_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_ef_a,string_1).
+__f_e_ef_a_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_ef_a,__f_e_ef_t).
+__f_e_ef_a_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_ef_a,__f_e_ef_b).
+
+__f_e_ef_y is Node("/f/e/ef/y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_ef_y).
+__f_e_ef_y_attr_name is Edge("name",FCO_attr_name,__f_e_ef_y,string_36).
+__f_e_ef_y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_ef_y,string_67).
+__f_e_ef_y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_ef_y,string_1).
+__f_e_ef_y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_ef_y,__f_e_ef_5).
+__f_e_ef_y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_ef_y,__f_e_ef_t).
+
+__f_e_ef_z is Node("/f/e/ef/z",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_ef_z).
+__f_e_ef_z_attr_name is Edge("name",FCO_attr_name,__f_e_ef_z,string_39).
+__f_e_ef_z_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_ef_z,string_76).
+__f_e_ef_z_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_ef_z,string_1).
+__f_e_ef_z_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_ef_z,__f_e_ef_b).
+__f_e_ef_z_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_ef_z,__f_e_ef_5).
+
+__f_e_ef_t is Node("/f/e/ef/t",InitialState).
+NodeInheritance(InitialState,__f_e_ef_t).
+__f_e_ef_t_attr_name is Edge("name",FCO_attr_name,__f_e_ef_t,string_18).
+
+__f_e_T is Node("/f/e/T",ComponentType).
+NodeInheritance(ComponentType,__f_e_T).
+__f_e_T_attr_name is Edge("name",FCO_attr_name,__f_e_T,string_77).
+__f_e_T_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_T,string_1).
+__f_e_T_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_T,string_1).
+__f_e_T_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_T,string_50).
+__f_e_T_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_T,string_78).
+
+__f_e_T_5 is Node("/f/e/T/5",State).
+NodeInheritance(State,__f_e_T_5).
+__f_e_T_5_attr_name is Edge("name",FCO_attr_name,__f_e_T_5,string_11).
+
+__f_e_T_b is Node("/f/e/T/b",State).
+NodeInheritance(State,__f_e_T_b).
+__f_e_T_b_attr_name is Edge("name",FCO_attr_name,__f_e_T_b,string_5).
+
+__f_e_T_a is Node("/f/e/T/a",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_T_a).
+__f_e_T_a_attr_name is Edge("name",FCO_attr_name,__f_e_T_a,string_65).
+__f_e_T_a_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_T_a,string_66).
+__f_e_T_a_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_T_a,string_1).
+__f_e_T_a_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_T_a,__f_e_T_t).
+__f_e_T_a_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_T_a,__f_e_T_b).
+
+__f_e_T_y is Node("/f/e/T/y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_T_y).
+__f_e_T_y_attr_name is Edge("name",FCO_attr_name,__f_e_T_y,string_36).
+__f_e_T_y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_T_y,string_67).
+__f_e_T_y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_T_y,string_1).
+__f_e_T_y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_T_y,__f_e_T_5).
+__f_e_T_y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_T_y,__f_e_T_t).
+
+__f_e_T_z is Node("/f/e/T/z",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_T_z).
+__f_e_T_z_attr_name is Edge("name",FCO_attr_name,__f_e_T_z,string_39).
+__f_e_T_z_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_T_z,string_79).
+__f_e_T_z_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_T_z,string_1).
+__f_e_T_z_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_T_z,__f_e_T_b).
+__f_e_T_z_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_T_z,__f_e_T_5).
+
+__f_e_T_t is Node("/f/e/T/t",InitialState).
+NodeInheritance(InitialState,__f_e_T_t).
+__f_e_T_t_attr_name is Edge("name",FCO_attr_name,__f_e_T_t,string_18).
+
+__f_e_G3 is Node("/f/e/G3",ComponentType).
+NodeInheritance(ComponentType,__f_e_G3).
+__f_e_G3_attr_name is Edge("name",FCO_attr_name,__f_e_G3,string_80).
+__f_e_G3_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_G3,string_1).
+__f_e_G3_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_G3,string_1).
+__f_e_G3_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_G3,string_50).
+__f_e_G3_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_G3,string_70).
+
+__f_e_G3_5 is Node("/f/e/G3/5",State).
+NodeInheritance(State,__f_e_G3_5).
+__f_e_G3_5_attr_name is Edge("name",FCO_attr_name,__f_e_G3_5,string_11).
+
+__f_e_G3_b is Node("/f/e/G3/b",State).
+NodeInheritance(State,__f_e_G3_b).
+__f_e_G3_b_attr_name is Edge("name",FCO_attr_name,__f_e_G3_b,string_5).
+
+__f_e_G3_a is Node("/f/e/G3/a",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_G3_a).
+__f_e_G3_a_attr_name is Edge("name",FCO_attr_name,__f_e_G3_a,string_65).
+__f_e_G3_a_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_G3_a,string_66).
+__f_e_G3_a_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_G3_a,string_1).
+__f_e_G3_a_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_G3_a,__f_e_G3_t).
+__f_e_G3_a_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_G3_a,__f_e_G3_b).
+
+__f_e_G3_y is Node("/f/e/G3/y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_G3_y).
+__f_e_G3_y_attr_name is Edge("name",FCO_attr_name,__f_e_G3_y,string_36).
+__f_e_G3_y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_G3_y,string_67).
+__f_e_G3_y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_G3_y,string_1).
+__f_e_G3_y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_G3_y,__f_e_G3_5).
+__f_e_G3_y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_G3_y,__f_e_G3_t).
+
+__f_e_G3_z is Node("/f/e/G3/z",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_G3_z).
+__f_e_G3_z_attr_name is Edge("name",FCO_attr_name,__f_e_G3_z,string_39).
+__f_e_G3_z_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_G3_z,string_81).
+__f_e_G3_z_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_G3_z,string_1).
+__f_e_G3_z_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_G3_z,__f_e_G3_b).
+__f_e_G3_z_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_G3_z,__f_e_G3_5).
+
+__f_e_G3_t is Node("/f/e/G3/t",InitialState).
+NodeInheritance(InitialState,__f_e_G3_t).
+__f_e_G3_t_attr_name is Edge("name",FCO_attr_name,__f_e_G3_t,string_18).
+
+__f_e_E is Node("/f/e/E",ComponentType).
+NodeInheritance(ComponentType,__f_e_E).
+__f_e_E_attr_name is Edge("name",FCO_attr_name,__f_e_E,string_82).
+__f_e_E_attr_definitions is Edge("definitions",ComponentType_attr_definitions,__f_e_E,string_1).
+__f_e_E_attr_forwards is Edge("forwards",ComponentType_attr_forwards,__f_e_E,string_1).
+__f_e_E_attr_constructors is Edge("constructors",ComponentType_attr_constructors,__f_e_E,string_50).
+__f_e_E_attr_cardinality is Edge("cardinality",ComponentType_attr_cardinality,__f_e_E,string_78).
+
+__f_e_E_5 is Node("/f/e/E/5",State).
+NodeInheritance(State,__f_e_E_5).
+__f_e_E_5_attr_name is Edge("name",FCO_attr_name,__f_e_E_5,string_11).
+
+__f_e_E_b is Node("/f/e/E/b",State).
+NodeInheritance(State,__f_e_E_b).
+__f_e_E_b_attr_name is Edge("name",FCO_attr_name,__f_e_E_b,string_5).
+
+__f_e_E_a is Node("/f/e/E/a",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_E_a).
+__f_e_E_a_attr_name is Edge("name",FCO_attr_name,__f_e_E_a,string_65).
+__f_e_E_a_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_E_a,string_66).
+__f_e_E_a_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_E_a,string_1).
+__f_e_E_a_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_E_a,__f_e_E_t).
+__f_e_E_a_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_E_a,__f_e_E_b).
+
+__f_e_E_y is Node("/f/e/E/y",EnforceableTransition).
+NodeInheritance(EnforceableTransition,__f_e_E_y).
+__f_e_E_y_attr_name is Edge("name",FCO_attr_name,__f_e_E_y,string_36).
+__f_e_E_y_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_E_y,string_67).
+__f_e_E_y_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_E_y,string_1).
+__f_e_E_y_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_E_y,__f_e_E_5).
+__f_e_E_y_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_E_y,__f_e_E_t).
+
+__f_e_E_z is Node("/f/e/E/z",InternalTransition).
+NodeInheritance(InternalTransition,__f_e_E_z).
+__f_e_E_z_attr_name is Edge("name",FCO_attr_name,__f_e_E_z,string_39).
+__f_e_E_z_attr_transitionMethod is Edge("transitionMethod",TransitionBase_attr_transitionMethod,__f_e_E_z,string_83).
+__f_e_E_z_attr_guardName is Edge("guardName",TransitionBase_attr_guardName,__f_e_E_z,string_1).
+__f_e_E_z_ptr_src is Edge("src",TransitionBase_ptr_src,__f_e_E_z,__f_e_E_b).
+__f_e_E_z_ptr_dst is Edge("dst",TransitionBase_ptr_dst,__f_e_E_z,__f_e_E_5).
+
+__f_e_E_t is Node("/f/e/E/t",InitialState).
+NodeInheritance(InitialState,__f_e_E_t).
+__f_e_E_t_attr_name is Edge("name",FCO_attr_name,__f_e_E_t,string_18).
+
+__f_e_BY is Node("/f/e/BY",Synchron).
+NodeInheritance(Synchron,__f_e_BY).
+__f_e_BY_attr_name is Edge("name",FCO_attr_name,__f_e_BY,string_4).
+__f_e_BY_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_BY,string_5).
+__f_e_BY_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_BY,string_5).
+
+__f_e_ge is Node("/f/e/ge",Synchron).
+NodeInheritance(Synchron,__f_e_ge).
+__f_e_ge_attr_name is Edge("name",FCO_attr_name,__f_e_ge,string_4).
+__f_e_ge_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_ge,string_5).
+__f_e_ge_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_ge,string_5).
+
+__f_e_Mk is Node("/f/e/Mk",Connection).
+NodeInheritance(Connection,__f_e_Mk).
+__f_e_Mk_attr_name is Edge("name",FCO_attr_name,__f_e_Mk,string_2).
+__f_e_Mk_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Mk,__f_e_ef_y).
+__f_e_Mk_ptr_src is Edge("src",Connection_ptr_src,__f_e_Mk,__f_e_ge).
+
+__f_e_Vq is Node("/f/e/Vq",Synchron).
+NodeInheritance(Synchron,__f_e_Vq).
+__f_e_Vq_attr_name is Edge("name",FCO_attr_name,__f_e_Vq,string_4).
+__f_e_Vq_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Vq,string_5).
+__f_e_Vq_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Vq,string_5).
+
+__f_e_V is Node("/f/e/V",Connection).
+NodeInheritance(Connection,__f_e_V).
+__f_e_V_attr_name is Edge("name",FCO_attr_name,__f_e_V,string_2).
+__f_e_V_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_V,__f_e_G3_a).
+__f_e_V_ptr_src is Edge("src",Connection_ptr_src,__f_e_V,__f_e_Vq).
+
+__f_e_W is Node("/f/e/W",Synchron).
+NodeInheritance(Synchron,__f_e_W).
+__f_e_W_attr_name is Edge("name",FCO_attr_name,__f_e_W,string_4).
+__f_e_W_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_W,string_5).
+__f_e_W_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_W,string_5).
+
+__f_e_UP is Node("/f/e/UP",Connection).
+NodeInheritance(Connection,__f_e_UP).
+__f_e_UP_attr_name is Edge("name",FCO_attr_name,__f_e_UP,string_2).
+__f_e_UP_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_UP,__f_e_G3_y).
+__f_e_UP_ptr_src is Edge("src",Connection_ptr_src,__f_e_UP,__f_e_W).
+
+__f_e_c9 is Node("/f/e/c9",Synchron).
+NodeInheritance(Synchron,__f_e_c9).
+__f_e_c9_attr_name is Edge("name",FCO_attr_name,__f_e_c9,string_4).
+__f_e_c9_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_c9,string_5).
+__f_e_c9_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_c9,string_5).
+
+__f_e_Qk is Node("/f/e/Qk",Connection).
+NodeInheritance(Connection,__f_e_Qk).
+__f_e_Qk_attr_name is Edge("name",FCO_attr_name,__f_e_Qk,string_2).
+__f_e_Qk_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Qk,__f_e_cM_V).
+__f_e_Qk_ptr_src is Edge("src",Connection_ptr_src,__f_e_Qk,__f_e_c9).
+
+__f_e_KE is Node("/f/e/KE",Synchron).
+NodeInheritance(Synchron,__f_e_KE).
+__f_e_KE_attr_name is Edge("name",FCO_attr_name,__f_e_KE,string_4).
+__f_e_KE_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_KE,string_5).
+__f_e_KE_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_KE,string_5).
+
+__f_e_Hj is Node("/f/e/Hj",Connection).
+NodeInheritance(Connection,__f_e_Hj).
+__f_e_Hj_attr_name is Edge("name",FCO_attr_name,__f_e_Hj,string_2).
+__f_e_Hj_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Hj,__f_e_cM_d).
+__f_e_Hj_ptr_src is Edge("src",Connection_ptr_src,__f_e_Hj,__f_e_KE).
+
+__f_e_Rc is Node("/f/e/Rc",Synchron).
+NodeInheritance(Synchron,__f_e_Rc).
+__f_e_Rc_attr_name is Edge("name",FCO_attr_name,__f_e_Rc,string_4).
+__f_e_Rc_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Rc,string_5).
+__f_e_Rc_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Rc,string_5).
+
+__f_e_Xm is Node("/f/e/Xm",Connection).
+NodeInheritance(Connection,__f_e_Xm).
+__f_e_Xm_attr_name is Edge("name",FCO_attr_name,__f_e_Xm,string_2).
+__f_e_Xm_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Xm,__f_e_E_y).
+__f_e_Xm_ptr_src is Edge("src",Connection_ptr_src,__f_e_Xm,__f_e_Rc).
+
+__f_e_6T is Node("/f/e/6T",Synchron).
+NodeInheritance(Synchron,__f_e_6T).
+__f_e_6T_attr_name is Edge("name",FCO_attr_name,__f_e_6T,string_4).
+__f_e_6T_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_6T,string_5).
+__f_e_6T_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_6T,string_5).
+
+__f_e_nZ is Node("/f/e/nZ",Connection).
+NodeInheritance(Connection,__f_e_nZ).
+__f_e_nZ_attr_name is Edge("name",FCO_attr_name,__f_e_nZ,string_2).
+__f_e_nZ_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_nZ,__f_e_E_a).
+__f_e_nZ_ptr_src is Edge("src",Connection_ptr_src,__f_e_nZ,__f_e_6T).
+
+__f_e_D9 is Node("/f/e/D9",Synchron).
+NodeInheritance(Synchron,__f_e_D9).
+__f_e_D9_attr_name is Edge("name",FCO_attr_name,__f_e_D9,string_4).
+__f_e_D9_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_D9,string_5).
+__f_e_D9_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_D9,string_5).
+
+__f_e_g4 is Node("/f/e/g4",Connection).
+NodeInheritance(Connection,__f_e_g4).
+__f_e_g4_attr_name is Edge("name",FCO_attr_name,__f_e_g4,string_2).
+__f_e_g4_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_g4,__f_e_T_y).
+__f_e_g4_ptr_src is Edge("src",Connection_ptr_src,__f_e_g4,__f_e_D9).
+
+__f_e_U is Node("/f/e/U",Synchron).
+NodeInheritance(Synchron,__f_e_U).
+__f_e_U_attr_name is Edge("name",FCO_attr_name,__f_e_U,string_4).
+__f_e_U_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_U,string_5).
+__f_e_U_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_U,string_5).
+
+__f_e_Ai is Node("/f/e/Ai",Connection).
+NodeInheritance(Connection,__f_e_Ai).
+__f_e_Ai_attr_name is Edge("name",FCO_attr_name,__f_e_Ai,string_2).
+__f_e_Ai_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Ai,__f_e_T_a).
+__f_e_Ai_ptr_src is Edge("src",Connection_ptr_src,__f_e_Ai,__f_e_U).
+
+__f_e_Qb is Node("/f/e/Qb",Synchron).
+NodeInheritance(Synchron,__f_e_Qb).
+__f_e_Qb_attr_name is Edge("name",FCO_attr_name,__f_e_Qb,string_4).
+__f_e_Qb_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Qb,string_11).
+__f_e_Qb_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Qb,string_5).
+
+__f_e_zy is Node("/f/e/zy",Synchron).
+NodeInheritance(Synchron,__f_e_zy).
+__f_e_zy_attr_name is Edge("name",FCO_attr_name,__f_e_zy,string_4).
+__f_e_zy_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_zy,string_5).
+__f_e_zy_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_zy,string_5).
+
+__f_e_Br is Node("/f/e/Br",Connection).
+NodeInheritance(Connection,__f_e_Br).
+__f_e_Br_attr_name is Edge("name",FCO_attr_name,__f_e_Br,string_2).
+__f_e_Br_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Br,__f_e_M_a).
+__f_e_Br_ptr_src is Edge("src",Connection_ptr_src,__f_e_Br,__f_e_zy).
+
+__f_e_V6 is Node("/f/e/V6",Synchron).
+NodeInheritance(Synchron,__f_e_V6).
+__f_e_V6_attr_name is Edge("name",FCO_attr_name,__f_e_V6,string_4).
+__f_e_V6_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_V6,string_5).
+__f_e_V6_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_V6,string_70).
+
+__f_e_Zm is Node("/f/e/Zm",Connection).
+NodeInheritance(Connection,__f_e_Zm).
+__f_e_Zm_attr_name is Edge("name",FCO_attr_name,__f_e_Zm,string_2).
+__f_e_Zm_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Zm,__f_e_d_1).
+__f_e_Zm_ptr_src is Edge("src",Connection_ptr_src,__f_e_Zm,__f_e_V6).
+
+__f_e_ia is Node("/f/e/ia",Synchron).
+NodeInheritance(Synchron,__f_e_ia).
+__f_e_ia_attr_name is Edge("name",FCO_attr_name,__f_e_ia,string_4).
+__f_e_ia_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_ia,string_5).
+__f_e_ia_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_ia,string_70).
+
+__f_e_mS is Node("/f/e/mS",Connection).
+NodeInheritance(Connection,__f_e_mS).
+__f_e_mS_attr_name is Edge("name",FCO_attr_name,__f_e_mS,string_2).
+__f_e_mS_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_mS,__f_e_d_1).
+__f_e_mS_ptr_src is Edge("src",Connection_ptr_src,__f_e_mS,__f_e_ia).
+
+__f_e_Lz is Node("/f/e/Lz",Synchron).
+NodeInheritance(Synchron,__f_e_Lz).
+__f_e_Lz_attr_name is Edge("name",FCO_attr_name,__f_e_Lz,string_4).
+__f_e_Lz_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Lz,string_5).
+__f_e_Lz_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Lz,string_70).
+
+__f_e_sL is Node("/f/e/sL",Connection).
+NodeInheritance(Connection,__f_e_sL).
+__f_e_sL_attr_name is Edge("name",FCO_attr_name,__f_e_sL,string_2).
+__f_e_sL_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_sL,__f_e_d_E).
+__f_e_sL_ptr_src is Edge("src",Connection_ptr_src,__f_e_sL,__f_e_Lz).
+
+__f_e_Nt is Node("/f/e/Nt",Synchron).
+NodeInheritance(Synchron,__f_e_Nt).
+__f_e_Nt_attr_name is Edge("name",FCO_attr_name,__f_e_Nt,string_4).
+__f_e_Nt_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Nt,string_5).
+__f_e_Nt_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Nt,string_70).
+
+__f_e_8i is Node("/f/e/8i",Connection).
+NodeInheritance(Connection,__f_e_8i).
+__f_e_8i_attr_name is Edge("name",FCO_attr_name,__f_e_8i,string_2).
+__f_e_8i_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_8i,__f_e_d_E).
+__f_e_8i_ptr_src is Edge("src",Connection_ptr_src,__f_e_8i,__f_e_Nt).
+
+__f_e_mf is Node("/f/e/mf",Synchron).
+NodeInheritance(Synchron,__f_e_mf).
+__f_e_mf_attr_name is Edge("name",FCO_attr_name,__f_e_mf,string_4).
+__f_e_mf_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_mf,string_5).
+__f_e_mf_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_mf,string_70).
+
+__f_e_ot is Node("/f/e/ot",Connection).
+NodeInheritance(Connection,__f_e_ot).
+__f_e_ot_attr_name is Edge("name",FCO_attr_name,__f_e_ot,string_2).
+__f_e_ot_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_ot,__f_e_d_M).
+__f_e_ot_ptr_src is Edge("src",Connection_ptr_src,__f_e_ot,__f_e_mf).
+
+__f_e_gK is Node("/f/e/gK",Synchron).
+NodeInheritance(Synchron,__f_e_gK).
+__f_e_gK_attr_name is Edge("name",FCO_attr_name,__f_e_gK,string_4).
+__f_e_gK_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_gK,string_5).
+__f_e_gK_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_gK,string_70).
+
+__f_e_jZ is Node("/f/e/jZ",Connection).
+NodeInheritance(Connection,__f_e_jZ).
+__f_e_jZ_attr_name is Edge("name",FCO_attr_name,__f_e_jZ,string_2).
+__f_e_jZ_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_jZ,__f_e_d_M).
+__f_e_jZ_ptr_src is Edge("src",Connection_ptr_src,__f_e_jZ,__f_e_gK).
+
+__f_e_aY is Node("/f/e/aY",Synchron).
+NodeInheritance(Synchron,__f_e_aY).
+__f_e_aY_attr_name is Edge("name",FCO_attr_name,__f_e_aY,string_4).
+__f_e_aY_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_aY,string_5).
+__f_e_aY_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_aY,string_70).
+
+__f_e_QG is Node("/f/e/QG",Connection).
+NodeInheritance(Connection,__f_e_QG).
+__f_e_QG_attr_name is Edge("name",FCO_attr_name,__f_e_QG,string_2).
+__f_e_QG_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_QG,__f_e_8_1).
+__f_e_QG_ptr_src is Edge("src",Connection_ptr_src,__f_e_QG,__f_e_aY).
+
+__f_e_Qv is Node("/f/e/Qv",Synchron).
+NodeInheritance(Synchron,__f_e_Qv).
+__f_e_Qv_attr_name is Edge("name",FCO_attr_name,__f_e_Qv,string_4).
+__f_e_Qv_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Qv,string_5).
+__f_e_Qv_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Qv,string_70).
+
+__f_e_G8 is Node("/f/e/G8",Connection).
+NodeInheritance(Connection,__f_e_G8).
+__f_e_G8_attr_name is Edge("name",FCO_attr_name,__f_e_G8,string_2).
+__f_e_G8_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_G8,__f_e_8_E).
+__f_e_G8_ptr_src is Edge("src",Connection_ptr_src,__f_e_G8,__f_e_Qv).
+
+__f_e_XE is Node("/f/e/XE",Synchron).
+NodeInheritance(Synchron,__f_e_XE).
+__f_e_XE_attr_name is Edge("name",FCO_attr_name,__f_e_XE,string_4).
+__f_e_XE_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_XE,string_5).
+__f_e_XE_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_XE,string_70).
+
+__f_e_1L is Node("/f/e/1L",Connection).
+NodeInheritance(Connection,__f_e_1L).
+__f_e_1L_attr_name is Edge("name",FCO_attr_name,__f_e_1L,string_2).
+__f_e_1L_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_1L,__f_e_8_M).
+__f_e_1L_ptr_src is Edge("src",Connection_ptr_src,__f_e_1L,__f_e_XE).
+
+__f_e_4W is Node("/f/e/4W",Synchron).
+NodeInheritance(Synchron,__f_e_4W).
+__f_e_4W_attr_name is Edge("name",FCO_attr_name,__f_e_4W,string_4).
+__f_e_4W_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_4W,string_5).
+__f_e_4W_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_4W,string_78).
+
+__f_e_uw is Node("/f/e/uw",Connection).
+NodeInheritance(Connection,__f_e_uw).
+__f_e_uw_attr_name is Edge("name",FCO_attr_name,__f_e_uw,string_2).
+__f_e_uw_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_uw,__f_e_v_E).
+__f_e_uw_ptr_src is Edge("src",Connection_ptr_src,__f_e_uw,__f_e_4W).
+
+__f_e_vE is Node("/f/e/vE",Synchron).
+NodeInheritance(Synchron,__f_e_vE).
+__f_e_vE_attr_name is Edge("name",FCO_attr_name,__f_e_vE,string_4).
+__f_e_vE_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_vE,string_5).
+__f_e_vE_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_vE,string_78).
+
+__f_e_I is Node("/f/e/I",Connection).
+NodeInheritance(Connection,__f_e_I).
+__f_e_I_attr_name is Edge("name",FCO_attr_name,__f_e_I,string_2).
+__f_e_I_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_I,__f_e_v_E).
+__f_e_I_ptr_src is Edge("src",Connection_ptr_src,__f_e_I,__f_e_vE).
+
+__f_e_6V is Node("/f/e/6V",Synchron).
+NodeInheritance(Synchron,__f_e_6V).
+__f_e_6V_attr_name is Edge("name",FCO_attr_name,__f_e_6V,string_4).
+__f_e_6V_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_6V,string_5).
+__f_e_6V_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_6V,string_78).
+
+__f_e_GS is Node("/f/e/GS",Connection).
+NodeInheritance(Connection,__f_e_GS).
+__f_e_GS_attr_name is Edge("name",FCO_attr_name,__f_e_GS,string_2).
+__f_e_GS_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_GS,__f_e_v_M).
+__f_e_GS_ptr_src is Edge("src",Connection_ptr_src,__f_e_GS,__f_e_6V).
+
+__f_e_R6 is Node("/f/e/R6",Synchron).
+NodeInheritance(Synchron,__f_e_R6).
+__f_e_R6_attr_name is Edge("name",FCO_attr_name,__f_e_R6,string_4).
+__f_e_R6_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_R6,string_5).
+__f_e_R6_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_R6,string_78).
+
+__f_e_qM is Node("/f/e/qM",Connection).
+NodeInheritance(Connection,__f_e_qM).
+__f_e_qM_attr_name is Edge("name",FCO_attr_name,__f_e_qM,string_2).
+__f_e_qM_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_qM,__f_e_v_M).
+__f_e_qM_ptr_src is Edge("src",Connection_ptr_src,__f_e_qM,__f_e_R6).
+
+__f_e_Op is Node("/f/e/Op",Synchron).
+NodeInheritance(Synchron,__f_e_Op).
+__f_e_Op_attr_name is Edge("name",FCO_attr_name,__f_e_Op,string_4).
+__f_e_Op_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Op,string_5).
+__f_e_Op_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Op,string_78).
+
+__f_e_k is Node("/f/e/k",Synchron).
+NodeInheritance(Synchron,__f_e_k).
+__f_e_k_attr_name is Edge("name",FCO_attr_name,__f_e_k,string_4).
+__f_e_k_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_k,string_5).
+__f_e_k_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_k,string_78).
+
+__f_e_oT is Node("/f/e/oT",Connection).
+NodeInheritance(Connection,__f_e_oT).
+__f_e_oT_attr_name is Edge("name",FCO_attr_name,__f_e_oT,string_2).
+__f_e_oT_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_oT,__f_e_v_1).
+__f_e_oT_ptr_src is Edge("src",Connection_ptr_src,__f_e_oT,__f_e_k).
+
+__f_e_2g is Node("/f/e/2g",Synchron).
+NodeInheritance(Synchron,__f_e_2g).
+__f_e_2g_attr_name is Edge("name",FCO_attr_name,__f_e_2g,string_4).
+__f_e_2g_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_2g,string_5).
+__f_e_2g_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_2g,string_84).
+
+__f_e_Lj is Node("/f/e/Lj",Connection).
+NodeInheritance(Connection,__f_e_Lj).
+__f_e_Lj_attr_name is Edge("name",FCO_attr_name,__f_e_Lj,string_2).
+__f_e_Lj_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Lj,__f_e_N_E).
+__f_e_Lj_ptr_src is Edge("src",Connection_ptr_src,__f_e_Lj,__f_e_2g).
+
+__f_e_5I is Node("/f/e/5I",Synchron).
+NodeInheritance(Synchron,__f_e_5I).
+__f_e_5I_attr_name is Edge("name",FCO_attr_name,__f_e_5I,string_4).
+__f_e_5I_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_5I,string_5).
+__f_e_5I_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_5I,string_84).
+
+__f_e_8k is Node("/f/e/8k",Connection).
+NodeInheritance(Connection,__f_e_8k).
+__f_e_8k_attr_name is Edge("name",FCO_attr_name,__f_e_8k,string_2).
+__f_e_8k_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_8k,__f_e_N_M).
+__f_e_8k_ptr_src is Edge("src",Connection_ptr_src,__f_e_8k,__f_e_5I).
+
+__f_e_vF is Node("/f/e/vF",Synchron).
+NodeInheritance(Synchron,__f_e_vF).
+__f_e_vF_attr_name is Edge("name",FCO_attr_name,__f_e_vF,string_4).
+__f_e_vF_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_vF,string_5).
+__f_e_vF_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_vF,string_64).
+
+__f_e_Vn is Node("/f/e/Vn",Connection).
+NodeInheritance(Connection,__f_e_Vn).
+__f_e_Vn_attr_name is Edge("name",FCO_attr_name,__f_e_Vn,string_2).
+__f_e_Vn_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Vn,__f_e_N_1).
+__f_e_Vn_ptr_src is Edge("src",Connection_ptr_src,__f_e_Vn,__f_e_vF).
+
+__f_e_Oo is Node("/f/e/Oo",Connector).
+NodeInheritance(Connector,__f_e_Oo).
+__f_e_Oo_attr_name is Edge("name",FCO_attr_name,__f_e_Oo,string_3).
+__f_e_Oo_ptr_src is Edge("src",Connector_ptr_src,__f_e_Oo,__f_e_ia).
+__f_e_Oo_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_Oo,__f_e_BY).
+
+__f_e_sp is Node("/f/e/sp",Connector).
+NodeInheritance(Connector,__f_e_sp).
+__f_e_sp_attr_name is Edge("name",FCO_attr_name,__f_e_sp,string_3).
+__f_e_sp_ptr_src is Edge("src",Connector_ptr_src,__f_e_sp,__f_e_V6).
+__f_e_sp_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_sp,__f_e_Vq).
+
+__f_e_gs is Node("/f/e/gs",Connector).
+NodeInheritance(Connector,__f_e_gs).
+__f_e_gs_attr_name is Edge("name",FCO_attr_name,__f_e_gs,string_3).
+__f_e_gs_ptr_src is Edge("src",Connector_ptr_src,__f_e_gs,__f_e_ge).
+__f_e_gs_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_gs,__f_e_Lz).
+
+__f_e_Gy is Node("/f/e/Gy",Synchron).
+NodeInheritance(Synchron,__f_e_Gy).
+__f_e_Gy_attr_name is Edge("name",FCO_attr_name,__f_e_Gy,string_4).
+__f_e_Gy_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Gy,string_5).
+__f_e_Gy_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Gy,string_5).
+
+__f_e_M3 is Node("/f/e/M3",Connection).
+NodeInheritance(Connection,__f_e_M3).
+__f_e_M3_attr_name is Edge("name",FCO_attr_name,__f_e_M3,string_2).
+__f_e_M3_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_M3,__f_e_ef_y).
+__f_e_M3_ptr_src is Edge("src",Connection_ptr_src,__f_e_M3,__f_e_Gy).
+
+__f_e_cb is Node("/f/e/cb",Synchron).
+NodeInheritance(Synchron,__f_e_cb).
+__f_e_cb_attr_name is Edge("name",FCO_attr_name,__f_e_cb,string_4).
+__f_e_cb_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_cb,string_5).
+__f_e_cb_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_cb,string_5).
+
+__f_e_r1 is Node("/f/e/r1",Connection).
+NodeInheritance(Connection,__f_e_r1).
+__f_e_r1_attr_name is Edge("name",FCO_attr_name,__f_e_r1,string_2).
+__f_e_r1_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_r1,__f_e_G3_y).
+__f_e_r1_ptr_src is Edge("src",Connection_ptr_src,__f_e_r1,__f_e_cb).
+
+__f_e_Wf is Node("/f/e/Wf",Connector).
+NodeInheritance(Connector,__f_e_Wf).
+__f_e_Wf_attr_name is Edge("name",FCO_attr_name,__f_e_Wf,string_3).
+__f_e_Wf_ptr_src is Edge("src",Connector_ptr_src,__f_e_Wf,__f_e_W).
+__f_e_Wf_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_Wf,__f_e_Nt).
+
+__f_e_JU is Node("/f/e/JU",Connector).
+NodeInheritance(Connector,__f_e_JU).
+__f_e_JU_attr_name is Edge("name",FCO_attr_name,__f_e_JU,string_3).
+__f_e_JU_ptr_src is Edge("src",Connector_ptr_src,__f_e_JU,__f_e_cb).
+__f_e_JU_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_JU,__f_e_gK).
+
+__f_e_1c is Node("/f/e/1c",Synchron).
+NodeInheritance(Synchron,__f_e_1c).
+__f_e_1c_attr_name is Edge("name",FCO_attr_name,__f_e_1c,string_4).
+__f_e_1c_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_1c,string_5).
+__f_e_1c_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_1c,string_5).
+
+__f_e_zg is Node("/f/e/zg",Connection).
+NodeInheritance(Connection,__f_e_zg).
+__f_e_zg_attr_name is Edge("name",FCO_attr_name,__f_e_zg,string_2).
+__f_e_zg_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_zg,__f_e_cM_d).
+__f_e_zg_ptr_src is Edge("src",Connection_ptr_src,__f_e_zg,__f_e_1c).
+
+__f_e_m5 is Node("/f/e/m5",Connector).
+NodeInheritance(Connector,__f_e_m5).
+__f_e_m5_attr_name is Edge("name",FCO_attr_name,__f_e_m5,string_3).
+__f_e_m5_ptr_src is Edge("src",Connector_ptr_src,__f_e_m5,__f_e_1c).
+__f_e_m5_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_m5,__f_e_XE).
+
+__f_e_P2 is Node("/f/e/P2",Connector).
+NodeInheritance(Connector,__f_e_P2).
+__f_e_P2_attr_name is Edge("name",FCO_attr_name,__f_e_P2,string_3).
+__f_e_P2_ptr_src is Edge("src",Connector_ptr_src,__f_e_P2,__f_e_KE).
+__f_e_P2_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_P2,__f_e_Qv).
+
+__f_e_v4 is Node("/f/e/v4",Connector).
+NodeInheritance(Connector,__f_e_v4).
+__f_e_v4_attr_name is Edge("name",FCO_attr_name,__f_e_v4,string_3).
+__f_e_v4_ptr_src is Edge("src",Connector_ptr_src,__f_e_v4,__f_e_c9).
+__f_e_v4_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_v4,__f_e_aY).
+
+__f_e_3y is Node("/f/e/3y",Connector).
+NodeInheritance(Connector,__f_e_3y).
+__f_e_3y_attr_name is Edge("name",FCO_attr_name,__f_e_3y,string_3).
+__f_e_3y_ptr_src is Edge("src",Connector_ptr_src,__f_e_3y,__f_e_vF).
+__f_e_3y_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_3y,__f_e_zy).
+
+__f_e_Nf is Node("/f/e/Nf",Synchron).
+NodeInheritance(Synchron,__f_e_Nf).
+__f_e_Nf_attr_name is Edge("name",FCO_attr_name,__f_e_Nf,string_4).
+__f_e_Nf_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_Nf,string_11).
+__f_e_Nf_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_Nf,string_5).
+
+__f_e_Uo is Node("/f/e/Uo",Connection).
+NodeInheritance(Connection,__f_e_Uo).
+__f_e_Uo_attr_name is Edge("name",FCO_attr_name,__f_e_Uo,string_2).
+__f_e_Uo_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Uo,__f_e_M_y).
+__f_e_Uo_ptr_src is Edge("src",Connection_ptr_src,__f_e_Uo,__f_e_Nf).
+
+__f_e_ts is Node("/f/e/ts",Connector).
+NodeInheritance(Connector,__f_e_ts).
+__f_e_ts_attr_name is Edge("name",FCO_attr_name,__f_e_ts,string_3).
+__f_e_ts_ptr_src is Edge("src",Connector_ptr_src,__f_e_ts,__f_e_Nf).
+__f_e_ts_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_ts,__f_e_5I).
+
+__f_e_L8 is Node("/f/e/L8",Connector).
+NodeInheritance(Connector,__f_e_L8).
+__f_e_L8_attr_name is Edge("name",FCO_attr_name,__f_e_L8,string_3).
+__f_e_L8_ptr_src is Edge("src",Connector_ptr_src,__f_e_L8,__f_e_Qb).
+__f_e_L8_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_L8,__f_e_2g).
+
+__f_e_DV is Node("/f/e/DV",Connector).
+NodeInheritance(Connector,__f_e_DV).
+__f_e_DV_attr_name is Edge("name",FCO_attr_name,__f_e_DV,string_3).
+__f_e_DV_ptr_src is Edge("src",Connector_ptr_src,__f_e_DV,__f_e_U).
+__f_e_DV_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_DV,__f_e_Op).
+
+__f_e_Gt is Node("/f/e/Gt",Connector).
+NodeInheritance(Connector,__f_e_Gt).
+__f_e_Gt_attr_name is Edge("name",FCO_attr_name,__f_e_Gt,string_3).
+__f_e_Gt_ptr_src is Edge("src",Connector_ptr_src,__f_e_Gt,__f_e_6T).
+__f_e_Gt_ptr_dst is Edge("dst",Connector_ptr_dst,__f_e_Gt,__f_e_k).
+
+__f_e_oV is Node("/f/e/oV",Synchron).
+NodeInheritance(Synchron,__f_e_oV).
+__f_e_oV_attr_name is Edge("name",FCO_attr_name,__f_e_oV,string_4).
+__f_e_oV_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_oV,string_5).
+__f_e_oV_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_oV,string_5).
+
+__f_e_Bt is Node("/f/e/Bt",Connection).
+NodeInheritance(Connection,__f_e_Bt).
+__f_e_Bt_attr_name is Edge("name",FCO_attr_name,__f_e_Bt,string_2).
+__f_e_Bt_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_Bt,__f_e_E_y).
+__f_e_Bt_ptr_src is Edge("src",Connection_ptr_src,__f_e_Bt,__f_e_oV).
+
+__f_e_nC is Node("/f/e/nC",Synchron).
+NodeInheritance(Synchron,__f_e_nC).
+__f_e_nC_attr_name is Edge("name",FCO_attr_name,__f_e_nC,string_4).
+__f_e_nC_attr_multiplicity is Edge("multiplicity",ConnectorEnd_attr_multiplicity,__f_e_nC,string_5).
+__f_e_nC_attr_degree is Edge("degree",ConnectorEnd_attr_degree,__f_e_nC,string_5).
+
+__f_e_I8 is Node("/f/e/I8",Connection).
+NodeInheritance(Connection,__f_e_I8).
+__f_e_I8_attr_name is Edge("name",FCO_attr_name,__f_e_I8,string_2).
+__f_e_I8_ptr_dst is Edge("dst",Connection_ptr_dst,__f_e_I8,__f_e_T_y).
+__f_e_I8_ptr_src is Edge("src",Connection_ptr_src,__f_e_I8,__f_e_nC).
+
+string_0 is Node("Modular phone",string).
+NodeInheritance(string,string_0).
+string_1 is Node("",string).
+NodeInheritance(string,string_1).
+string_2 is Node("Connection",string).
+NodeInheritance(string,string_2).
+string_3 is Node("Connector",string).
+NodeInheritance(string,string_3).
+string_4 is Node("Synchron",string).
+NodeInheritance(string,string_4).
+string_5 is Node("1",string).
+NodeInheritance(string,string_5).
+string_6 is Node("Log_Protocol_Controller",string).
+NodeInheritance(string,string_6).
+string_7 is Node("public int noOfTransitions =0;_nl_public boolean packetFromDriver = false;_nl_",string).
+NodeInheritance(string,string_7).
+string_8 is Node("sndToDri",string).
+NodeInheritance(string,string_8).
+string_9 is Node("public void sendToDriver(){_nl_  noOfTransitions++;_nl_}",string).
+NodeInheritance(string,string_9).
+string_10 is Node("!receivedResponse",string).
+NodeInheritance(string,string_10).
+string_11 is Node("2",string).
+NodeInheritance(string,string_11).
+string_12 is Node("rcvFromDri",string).
+NodeInheritance(string,string_12).
+string_13 is Node("public void receiveResponseFromDriver(){_nl_  noOfTransitions++;_nl_  packetFromDriver = true;_nl_}_nl_  ",string).
+NodeInheritance(string,string_13).
+string_14 is Node("send",string).
+NodeInheritance(string,string_14).
+string_15 is Node("public void sendToAP(){_nl_  noOfTransitions++;_nl_    packetFromDriver = false;_nl_}_nl_  ",string).
+NodeInheritance(string,string_15).
+string_16 is Node("rcvDriver",string).
+NodeInheritance(string,string_16).
+string_17 is Node("public void receiveResponseFromDriver(){_nl_  noOfTransitions++;_nl_    packetFromDriver = true;_nl_}_nl_  ",string).
+NodeInheritance(string,string_17).
+string_18 is Node("0",string).
+NodeInheritance(string,string_18).
+string_19 is Node("receive",string).
+NodeInheritance(string,string_19).
+string_20 is Node("public void receiveFromAP(){_nl_  noOfTransitions++;_nl_}_nl_  ",string).
+NodeInheritance(string,string_20).
+string_21 is Node("receivedResponse",string).
+NodeInheritance(string,string_21).
+string_22 is Node("public boolean receivedResponse(){_nl_  return packetFromDriver;_nl_}",string).
+NodeInheritance(string,string_22).
+string_23 is Node("AP_ReceiverFifo",string).
+NodeInheritance(string,string_23).
+string_24 is Node("private int dataCounter =0;_nl_public int noOfTransitions =0;_nl_final private int bufferLimit= 10;_nl_",string).
+NodeInheritance(string,string_24).
+string_25 is Node("  public AP_ReceiverFifo(int bufferlimit){_nl_    this.bufferLimit = bufferLimit;_nl_  }_nl_",string).
+NodeInheritance(string,string_25).
+string_26 is Node("notEmpty",string).
+NodeInheritance(string,string_26).
+string_27 is Node("public boolean notEmpty(){_nl_	return dataCounter > 0;_nl_}_nl_  ",string).
+NodeInheritance(string,string_27).
+string_28 is Node("add",string).
+NodeInheritance(string,string_28).
+string_29 is Node("public void putData() {_nl_	dataCounter++;_nl_  	noOfTransitions++;_nl_}_nl_  ",string).
+NodeInheritance(string,string_29).
+string_30 is Node("notFull",string).
+NodeInheritance(string,string_30).
+string_31 is Node("public boolean noFull(){_nl_	return dataCounter < bufferLimit;_nl_}",string).
+NodeInheritance(string,string_31).
+string_32 is Node("rm",string).
+NodeInheritance(string,string_32).
+string_33 is Node("public void removeData() {_nl_	dataCounter--;_nl_  	noOfTransitions++;_nl_}_nl_  ",string).
+NodeInheritance(string,string_33).
+string_34 is Node("AP_MessageWorker",string).
+NodeInheritance(string,string_34).
+string_35 is Node("_nl_public int noOfTransitions =0;_nl_private boolean sentToHandler = false;_nl_private boolean isRequest =true;_nl__nl__nl__nl__nl_",string).
+NodeInheritance(string,string_35).
+string_36 is Node("sndRes",string).
+NodeInheritance(string,string_36).
+string_37 is Node("public void receiveGreybusRequest() {_nl_	noOfTransitions++;_nl_  	sentToHandler = true;_nl_}",string).
+NodeInheritance(string,string_37).
+string_38 is Node("(!isRequest)&(!isDone)",string).
+NodeInheritance(string,string_38).
+string_39 is Node("internal",string).
+NodeInheritance(string,string_39).
+string_40 is Node("public void completeExecution() {_nl_  	noOfTransitions++;_nl_  	sentToHandler = false;_nl_  	_nl_}_nl_  ",string).
+NodeInheritance(string,string_40).
+string_41 is Node("isDone",string).
+NodeInheritance(string,string_41).
+string_42 is Node("public void receiveGreybusOperation() {_nl_  	noOfTransitions++;_nl_  	if (noOfTransitions % 2 = 0){_nl_      	isRequest = false;_nl_    } else {_nl_      	isRequest = true;_nl_    }_nl_}_nl_  ",string).
+NodeInheritance(string,string_42).
+string_43 is Node("isRequest",string).
+NodeInheritance(string,string_43).
+string_44 is Node("public boolean isRequest(){_nl_	return isRequest;_nl_}",string).
+NodeInheritance(string,string_44).
+string_45 is Node("sndReq",string).
+NodeInheritance(string,string_45).
+string_46 is Node("public void receiveGreybusRequest() {_nl_  	noOfTransitions++;_nl_    sentToHandler = true;_nl_}",string).
+NodeInheritance(string,string_46).
+string_47 is Node("(isRequest)&(!isDone)",string).
+NodeInheritance(string,string_47).
+string_48 is Node("public boolean isDone(){_nl_	return sentToHandler;_nl_}",string).
+NodeInheritance(string,string_48).
+string_49 is Node("AP_RequestWorker",string).
+NodeInheritance(string,string_49).
+string_50 is Node("public int noOfTransitions =0;_nl_",string).
+NodeInheritance(string,string_50).
+string_51 is Node("sndToController",string).
+NodeInheritance(string,string_51).
+string_52 is Node("public void processResponse() {_nl_  	noOfTransitions++;_nl_}",string).
+NodeInheritance(string,string_52).
+string_53 is Node("getReq",string).
+NodeInheritance(string,string_53).
+string_54 is Node("public void processReques() {_nl_  	noOfTransitions++;_nl_}",string).
+NodeInheritance(string,string_54).
+string_55 is Node("AP_ResponseWorker",string).
+NodeInheritance(string,string_55).
+string_56 is Node("public int noOfTransitions=0;_nl_",string).
+NodeInheritance(string,string_56).
+string_57 is Node("getRes",string).
+NodeInheritance(string,string_57).
+string_58 is Node("public void getResponse() {_nl_ 	noOfTransitions++;_nl_}",string).
+NodeInheritance(string,string_58).
+string_59 is Node("public void sendResponseToAP() {_nl_  	noOfTransitions++;_nl_}",string).
+NodeInheritance(string,string_59).
+string_60 is Node("Control_Protocol_Controller",string).
+NodeInheritance(string,string_60).
+string_61 is Node("Power_Supply_Protocol_Controller",string).
+NodeInheritance(string,string_61).
+string_62 is Node("Camera_Protocol_Controller",string).
+NodeInheritance(string,string_62).
+string_63 is Node("Power_Supply_Handler",string).
+NodeInheritance(string,string_63).
+string_64 is Node("k",string).
+NodeInheritance(string,string_64).
+string_65 is Node("rcvReq",string).
+NodeInheritance(string,string_65).
+string_66 is Node("public void receiveRequestFromAP(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_66).
+string_67 is Node("public void sendResponseToAP(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_67).
+string_68 is Node("public void setproperty(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_68).
+string_69 is Node("Log_Handler",string).
+NodeInheritance(string,string_69).
+string_70 is Node("n",string).
+NodeInheritance(string,string_70).
+string_71 is Node("rcvRes",string).
+NodeInheritance(string,string_71).
+string_72 is Node("public void receiveAckOrNack(){_nl_ noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_72).
+string_73 is Node("send_log",string).
+NodeInheritance(string,string_73).
+string_74 is Node("public void sendLog(){_nl_ noOfTransitions++; _nl_}_nl_                    ",string).
+NodeInheritance(string,string_74).
+string_75 is Node("Control_Connect_Handler",string).
+NodeInheritance(string,string_75).
+string_76 is Node("public void connect(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_76).
+string_77 is Node("Camera_Stream_Handler",string).
+NodeInheritance(string,string_77).
+string_78 is Node("m",string).
+NodeInheritance(string,string_78).
+string_79 is Node("public void stream(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_79).
+string_80 is Node("Control_Disconnect_Handler",string).
+NodeInheritance(string,string_80).
+string_81 is Node("public void disconnect(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_81).
+string_82 is Node("Camera_Capture_Handler",string).
+NodeInheritance(string,string_82).
+string_83 is Node("public void capture(){_nl_ 	noOfTransitions++; _nl_}",string).
+NodeInheritance(string,string_83).
+string_84 is Node("k/2",string).
+NodeInheritance(string,string_84).
+asset_0 is Node("",asset).
+NodeInheritance(asset,asset_0).
+
+
+}
