@@ -1,0 +1,90 @@
+domain WebGME
+{
+  MetaNode ::= new (name: String).
+  MetaEdge ::= new (name: String, src: MetaNode, dst: MetaNode, ms: Multiplicity, md: Multiplicity).
+  Multiplicity ::= new (low: Integer, high: Integer + {"*"}).
+
+  Node ::= new (name: String, type: MetaNode).
+  Edge ::= new (name: String, type: MetaEdge, src: Node, dst: Node).
+
+  NodeInheritance ::= new (base: MetaNode, instance: MetaNode + Node).
+  NodeInstanceOf ::= (MetaNode, MetaNode + Node).
+  NodeInstanceOf(b,i) :- NodeInheritance(b,i).
+  NodeInstanceOf(b,i) :- NodeInheritance(b,m), NodeInstanceOf(m,i).
+
+  WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
+
+  not1 :- n is Node, no {m | m is MetaNode, NodeInstanceOf(m,n)}.
+  not2 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.src,e.src)}.
+  not3 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.dst,e.dst)}.
+  not4a :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), count({s|s is Node, e is Edge (_,m,n,s)}) < m.md.low.
+  not4b :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), m.md.high != "*", count({s|s is Node, e is Edge (_,m,n,s)}) > m.md.high.
+
+  not5 :- m is MetaEdge, n is Node, NodeInstanceOf(m.src,n), m.md.low != 0, no{e | e is Edge(_,m,n,_)}.
+  not6a :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), count({s|s is Node, e is Edge (_,m,s,n)}) < m.ms.low.
+  not6b :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), m.ms.high != "*", count({s|s is Node, e is Edge (_,m,s,n)}) > m.ms.high.
+
+  not7 :- m is MetaEdge, n is Node, NodeInstanceOf(m.dst,n), m.ms.low != 0, no{e | e is Edge(_,m,_,n)}.
+
+}
+
+
+domain GraphDatabase
+{
+  PropType ::= String + Integer + Boolean.
+  Vertex ::= new (name: any String + {NIL}, props: any PropertyList + {NIL}).
+  Edge ::= new (label: String, src: Vertex, dst: Vertex, props: any PropertyList + {NIL}).
+  Property ::= new (key: String, value: PropType).
+
+  PropertyList ::= new (Property, any PropertyList + {NIL}).
+}
+
+model WebGMEModel of WebGME
+{
+  exactlyOne is Multiplicity(1,1).
+  atMostOne is Multiplicity(0,1).
+  atLeastOne is Multiplicity(1,"*").
+  anyNumber is Multiplicity(0,"*").
+
+  mn1 is MetaNode("mn1").
+  mn2 is MetaNode("mn2").
+  me1 is MetaEdge("me1", mn1, mn2, atLeastOne, atMostOne).
+
+  n1 is Node("n1", mn1).
+  n2 is Node("n2", mn2).
+  e1 is Edge("e1", me1, n1, n2).
+
+  ni1 is NodeInheritance(mn1, mn2).
+  ni2 is NodeInheritance(mn1, n1).
+  ni3 is NodeInheritance(mn2, n2).
+}
+
+model SmallGraph of GraphDatabase
+{
+  // p0 is a list of Properties with nested structure.
+  p0 is PropertyList(Property("size", "1"), p1).
+  p1 is PropertyList(Property("real", True), p2).
+  p2 is PropertyList(Property("docs", "A list of properties"), NIL).
+}
+
+// ap R = WebGMEtoGraph(WebGMEModel)
+// ex 0 R (ex TaskId ResultName)
+// sv R r.4ml
+transform WebGMEtoGraph (in:: WebGME)
+returns (out:: GraphDatabase)
+{
+  out.Vertex(name, NIL) :- in.MetaNode(name).
+
+  //out.sv is out.Vertex(sname, NIL), 
+  //out.dv is out.Vertex(dname, NIL), 
+  //out.msv is out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))), 
+  //out.mdv is out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))), 
+  
+  out.Edge(name, out.Vertex(sname, NIL), out.Vertex(dname, NIL), NIL),
+  out.Edge("ms", out.Vertex(sname, NIL), out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))), NIL),
+  out.Edge("md", out.Vertex(dname, NIL), out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))), NIL)
+  :- 
+  in.MetaEdge(name, src, dst, ms, md), 
+  src is in.MetaNode(sname), dst is in.MetaNode(dname), 
+  ms is in.Multiplicity(slow, shigh), md is in.Multiplicity(dlow, dhigh).
+}
