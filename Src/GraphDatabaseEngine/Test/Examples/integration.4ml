@@ -1,5 +1,33 @@
+// ap R = WebGMEtoGraph(WebGMEModel)
+// ex 0 R (ex TaskId ResultName)
+// sv R r.4ml
+transform WebGMEtoGraph (in:: WebGME)
+returns (out:: GraphDatabase)
+{
+  out.Vertex(name, NIL) :- in.MetaNode(name).
+
+  //out.sv is out.Vertex(sname, NIL),
+  //out.dv is out.Vertex(dname, NIL),
+  //out.msv is out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))),
+  //out.mdv is out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))),
+
+  out.Edge(name, out.Vertex(sname, NIL), out.Vertex(dname, NIL), NIL),
+  out.Edge("ms", out.Vertex(sname, NIL), out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))), NIL),
+  out.Edge("md", out.Vertex(dname, NIL), out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))), NIL)
+  :-
+  in.MetaEdge(name, src, dst, ms, md),
+  src is in.MetaNode(sname), dst is in.MetaNode(dname),
+  ms is in.Multiplicity(slow, shigh), md is in.Multiplicity(dlow, dhigh).
+}
+
+
 domain WebGME
 {
+  // Extend Anastasia's domain with properties.
+  PropType ::= String + Integer + Boolean.
+  Prop ::= new (key: String, value: any PropType).
+  Props ::= new (Prop, any Props + {NIL}).
+
   MetaNode ::= new (name: String).
   MetaEdge ::= new (name: String, src: MetaNode, dst: MetaNode, ms: Multiplicity, md: Multiplicity).
   Multiplicity ::= new (low: Integer, high: Integer + {"*"}).
@@ -34,10 +62,95 @@ domain GraphDatabase
   PropType ::= String + Integer + Boolean.
   Vertex ::= new (name: any String + {NIL}, props: any PropertyList + {NIL}).
   Edge ::= new (label: String, src: Vertex, dst: Vertex, props: any PropertyList + {NIL}).
-  Property ::= new (key: String, value: PropType).
+  Property ::= new (key: String, value: any PropType).
 
   PropertyList ::= new (Property, any PropertyList + {NIL}).
 }
+
+domain Gremlin extends GraphDatabase
+{
+  OutVStep ::= new (label: String).
+  InVStep ::= new (label: String).
+  //Step ::= FilterStep + OutVStep + InVStep.
+  //TraversalElement ::= Step + MethodCall.
+}
+
+// Parse a Formula program and create Formula models for Formula.
+domain Formula
+{
+  FormulaBuiltInType ::= Integer + String + {NIL}.
+  BaseType ::= new (name: String, argus: any Arguments + {NIL}).
+  EnumType ::= new (cur: FormulaBuiltInType, nxt: any EnumType + {NIL}).
+  UnionType ::= new (cur: any BaseType + EnumType, nxt: any UnionType + {NIL}).
+  Type ::= BaseType + EnumType + UnionType.
+
+  Argument ::= new (label: String + {NIL}, type: any Type).
+  Arguments ::= new (cur: any Argument, index: Integer, nxt: any Arguments + {NIL}).
+
+  // Related to Formula rule like TRUE :- C(a, b).
+  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
+  Label ::= new (name: String, type: Type, fragments: any Label + {NIL}).
+  Labels ::= new (cur: Label, index: Integer, nxt: any Labels + {NIL}).
+  BinaryExpr ::= new (op: Operator, left: Label, right: Label + FormulaBuiltInType).
+  ModelExpr ::= new (type: Type, labels: Labels).
+  BoolExpr ::= new (label: Label).
+  Expr ::= BinaryExpr + ModelExpr + BoolExpr.
+  Body ::= new (cur: Expr, nxt: any Body + {NIL}).
+  Head ::= new (cur: ModelExpr + BoolExpr, nxt: any ModelExpr + BoolExpr + {NIL}).
+  Rule ::= new (head: Head, body: Body).
+
+  // Conforms ...
+}
+
+model tenMachineGraphQueries of Gremlin
+{
+
+}
+
+
+model tenMachineQueries of Formula
+{
+  String is BaseType("String", NIL).
+  Integer is BaseType("Integer", NIL).
+  Boolean is BaseType("Boolean", NIL).
+  MetaNode is BaseType("MetaNode", Arguments(Argument("name", String), 0, NIL)).
+
+  MetaEdgeArgus_0 is Arguments(Argument("name", String), 0, MetaEdgeArgus_1).
+  MetaEdgeArgus_1 is Arguments(Argument("src", MetaNode), 1, MetaEdgeArgus_2).
+  MetaEdgeArgus_2 is Arguments(Argument("dst", MetaNode), 2, MetaEdgeArgus_3).
+  MetaEdgeArgus_3 is Arguments(Argument("ms", Multiplicity), 3, MetaEdgeArgus_4).
+  MetaEdgeArgus_4 is Arguments(Argument("md", Multiplicity), 4, NIL).
+  MetaEdge is BaseType("MetaEdge", MetaEdgeArgus_0).
+
+  NodeArgus_0 is Arguments(Argument("name", String), 0, NodeArgus_1).
+  NodeArgus_1 is Arguments(Argument("type", MetaNode), 1, NIL).
+  Node is BaseType("Node", NodeArgus_0).
+
+  EdgeArgus_0 is Arguments(Argument("name", String), 0, EdgeArgus_1).
+  EdgeArgus_1 is Arguments(Argument("type", MetaEdge), 1, EdgeArgus_2).
+  EdgeArgus_2 is Arguments(Argument("src", Node), 2, EdgeArgus_3).
+  EdgeArgus_3 is Arguments(Argument("dst", Node), 3, NIL).
+  Edge is BaseType("Edge", EdgeArgus_0).
+
+  StarEnumType is EnumType("*", NIL).
+  MulUnionType is UnionType(StarEnumType, UnionType(Integer, NIL)).
+  MultiplicityArgus_0 is Arguments(Argument("low", Integer), 0, MultiplicityArgus_1).
+  MultiplicityArgus_1 is Arguments(Argument("high", MulUnionType), 1, NIL).
+  Multiplicity is BaseType("Multiplicity", MultiplicityArgus_0).
+
+  // Models for Formula rule: WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
+  low is Label("low", Integer, NIL).
+  high is Label("high", MulUnionType, NIL).
+  WrongMultiplicity is Label("WrongMultiplicity", Boolean, NIL).
+  binaryExpr_0 is BinaryExpr(NEQ, high, "*").
+  binaryExpr_1 is BinaryExpr(GT, low, high).
+  modelExpr_0 is ModelExpr(Multiplicity, Labels(low, 0, Labels(high, 1, NIL))).
+  boolExpr_0 is BoolExpr(WrongMultiplicity).
+  body is Body(modelExpr_0, Body(binaryExpr_0, Body(binaryExpr_1, NIL))).
+  head is Head(boolExpr_0, NIL).
+  wrongMultiplicityRule is Rule(head, body).
+}
+
 
 model WebGMEModel of WebGME
 {
@@ -63,28 +176,19 @@ model SmallGraph of GraphDatabase
 {
   // p0 is a list of Properties with nested structure.
   p0 is PropertyList(Property("size", "1"), p1).
-  p1 is PropertyList(Property("real", True), p2).
+  p1 is PropertyList(Property("real", TRUE), p2).
   p2 is PropertyList(Property("docs", "A list of properties"), NIL).
+
+  v0 is Vertex("v0", p0).
+  v1 is Vertex("v1", p1).
+  v2 is Vertex("v2", p2).
+
+  e0 is Edge("connection", v0, v1, p0).
+  e1 is Edge("connection", v1, v2, p1).
 }
 
-// ap R = WebGMEtoGraph(WebGMEModel)
-// ex 0 R (ex TaskId ResultName)
-// sv R r.4ml
-transform WebGMEtoGraph (in:: WebGME)
-returns (out:: GraphDatabase)
-{
-  out.Vertex(name, NIL) :- in.MetaNode(name).
 
-  //out.sv is out.Vertex(sname, NIL), 
-  //out.dv is out.Vertex(dname, NIL), 
-  //out.msv is out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))), 
-  //out.mdv is out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))), 
-  
-  out.Edge(name, out.Vertex(sname, NIL), out.Vertex(dname, NIL), NIL),
-  out.Edge("ms", out.Vertex(sname, NIL), out.Vertex(NIL, PropertyList(Property("low", slow), PropertyList(Property("high", shigh), NIL))), NIL),
-  out.Edge("md", out.Vertex(dname, NIL), out.Vertex(NIL, PropertyList(Property("low", dlow), PropertyList(Property("high", dhigh), NIL))), NIL)
-  :- 
-  in.MetaEdge(name, src, dst, ms, md), 
-  src is in.MetaNode(sname), dst is in.MetaNode(dname), 
-  ms is in.Multiplicity(slow, shigh), md is in.Multiplicity(dlow, dhigh).
-}
+
+
+
+
