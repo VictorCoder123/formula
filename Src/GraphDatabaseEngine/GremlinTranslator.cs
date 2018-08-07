@@ -33,8 +33,25 @@
             Env env = new Env();
             InstallResult ires;
             ProgramName progName = new ProgramName(inputFile);
-            env.Install(inputFile, out ires);
+            Stopwatch stopwatch = new Stopwatch();
 
+            stopwatch.Restart();
+            //env.Install(inputFile, out ires);
+
+            // Only parse FORMULA file without compiling.
+            var task = Factory.Instance.ParseFile(progName);
+            task.Wait();
+            Program = task.Result.Program;
+
+            stopwatch.Stop();
+
+            TimeSpan ts = stopwatch.Elapsed;
+            string elapsedTime = ts.ToString("c");
+            Console.WriteLine("--------------------------------------------------------");
+            Console.WriteLine(string.Format("Time for loading FORMULA file: {0}", elapsedTime));
+            Console.WriteLine("--------------------------------------------------------\n");
+
+            /*
             if (!ires.Succeeded)
             {
                 Console.WriteLine("System failed to install {0}.", inputFile);
@@ -64,6 +81,7 @@
                     f.Item2.Span.StartCol,
                     f.Item2.Message));
             }
+            */
 
             Program.FindAll(
                 new NodePred[] { NodePredFactory.Instance.Star, NodePredFactory.Instance.MkPredicate(NodeKind.Domain) },
