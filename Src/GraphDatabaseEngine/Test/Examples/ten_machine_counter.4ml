@@ -1,0 +1,171 @@
+domain WebGME
+{
+  MetaNode ::= new (name: String).
+  MetaEdge ::= new (name: String, src: MetaNode, dst: MetaNode, ms: Multiplicity, md: Multiplicity).
+  Multiplicity ::= new (low: Integer, high: Integer + {"*"}).
+
+  Node ::= new (name: String, type: MetaNode).
+  Edge ::= new (name: String, type: MetaEdge, src: Node, dst: Node).
+
+  NodeInheritance ::= new (base: MetaNode, instance: MetaNode + Node).
+  NodeInstanceOf ::= (MetaNode, MetaNode + Node).
+  NodeInstanceOf(b,i) :- NodeInheritance(b,i).
+  NodeInstanceOf(b,i) :- NodeInheritance(b,m), NodeInstanceOf(m,i).
+
+  WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
+
+  not1 :- n is Node, no {m | m is MetaNode, NodeInstanceOf(m,n)}.
+  not2 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.src,e.src)}.
+  not3 :- e is Edge, no {m | m is MetaEdge, m = e.type, NodeInstanceOf(m.dst,e.dst)}.
+  not4a :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), count({s|s is Node, e is Edge (_,m,n,s)}) < m.md.low.
+  not4b :- n is Node, m is MetaEdge, NodeInstanceOf(m.src,n), m.md.high != "*", count({s|s is Node, e is Edge (_,m,n,s)}) > m.md.high.
+
+  not5 :- m is MetaEdge, n is Node, NodeInstanceOf(m.src,n), m.md.low != 0, no{e | e is Edge(_,m,n,_)}.
+  not6a :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), count({s|s is Node, e is Edge (_,m,s,n)}) < m.ms.low.
+  not6b :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), m.ms.high != "*", count({s|s is Node, e is Edge (_,m,s,n)}) > m.ms.high.
+
+  not7 :- m is MetaEdge, n is Node, NodeInstanceOf(m.dst,n), m.ms.low != 0, no{e | e is Edge(_,m,_,n)}.
+
+}
+
+
+model TenMachine of WebGME
+{
+  string is MetaNode("string").
+  integer is MetaNode("integer").
+  float is MetaNode("float").
+  boolean is MetaNode("boolean").
+  asset is MetaNode("asset").
+
+  exactlyOne is Multiplicity(1,1).
+  atMostOne is Multiplicity(0,1).
+  atLeastOne is Multiplicity(1,"*").
+  anyNumber is Multiplicity(0,"*").
+
+  FCO is MetaNode("FCO").
+  FCO_attr_name is MetaEdge("FCO_attr_name",FCO,string,anyNumber,atMostOne).
+  Documentation is MetaNode("Documentation").
+  Documentation_attr_documentation is MetaEdge("Documentation_attr_documentation",Documentation,string,anyNumber,atMostOne).
+  NodeInheritance(FCO,Documentation).
+  FSMDiagram is MetaNode("FSMDiagram").
+  NodeInheritance(FCO,FSMDiagram).
+  StateBase is MetaNode("StateBase").
+  NodeInheritance(FCO,StateBase).
+  Initial is MetaNode("Initial").
+  NodeInheritance(StateBase,Initial).
+  State is MetaNode("State").
+  NodeInheritance(StateBase,State).
+  End is MetaNode("End").
+  NodeInheritance(StateBase,End).
+  Transition is MetaNode("Transition").
+  Transition_attr_guard is MetaEdge("Transition_attr_guard",Transition,string,anyNumber,atMostOne).
+  Transition_attr_operation is MetaEdge("Transition_attr_operation",Transition,string,anyNumber,atMostOne).
+  Transition_ptr_src_target is MetaNode("Transition_ptr_src_target").
+  Transition_ptr_src is MetaEdge("src",Transition,Transition_ptr_src_target,anyNumber,atMostOne).
+  NodeInheritance(Transition_ptr_src_target,StateBase).
+  Transition_ptr_dst_target is MetaNode("Transition_ptr_dst_target").
+  Transition_ptr_dst is MetaEdge("dst",Transition,Transition_ptr_dst_target,anyNumber,atMostOne).
+  NodeInheritance(Transition_ptr_dst_target,StateBase).
+  NodeInheritance(FCO,Transition).
+  Language is MetaNode("Language").
+  NodeInheritance(FCO,Language).
+__E is Node("/E",FSMDiagram).
+NodeInheritance(FSMDiagram,__E).
+__E_attr_name is Edge("name",FCO_attr_name,__E,string_0).
+__E_3 is Node("/E/3",State).
+NodeInheritance(State,__E_3).
+__E_3_attr_name is Edge("name",FCO_attr_name,__E_3,string_1).
+__E_7 is Node("/E/7",Transition).
+NodeInheritance(Transition,__E_7).
+__E_7_attr_name is Edge("name",FCO_attr_name,__E_7,string_2).
+__E_7_attr_guard is Edge("guard",Transition_attr_guard,__E_7,string_3).
+__E_7_attr_operation is Edge("operation",Transition_attr_operation,__E_7,string_4).
+__E_7_ptr_src is Edge("src",Transition_ptr_src,__E_7,__E_M).
+__E_7_ptr_dst is Edge("dst",Transition_ptr_dst,__E_7,__E_3).
+__E_S is Node("/E/S",Transition).
+NodeInheritance(Transition,__E_S).
+__E_S_attr_name is Edge("name",FCO_attr_name,__E_S,string_2).
+__E_S_attr_guard is Edge("guard",Transition_attr_guard,__E_S,string_5).
+__E_S_attr_operation is Edge("operation",Transition_attr_operation,__E_S,string_6).
+__E_S_ptr_src is Edge("src",Transition_ptr_src,__E_S,__E_3).
+__E_S_ptr_dst is Edge("dst",Transition_ptr_dst,__E_S,__E_t).
+__E_W is Node("/E/W",Transition).
+NodeInheritance(Transition,__E_W).
+__E_W_attr_name is Edge("name",FCO_attr_name,__E_W,string_2).
+__E_W_attr_guard is Edge("guard",Transition_attr_guard,__E_W,string_5).
+__E_W_attr_operation is Edge("operation",Transition_attr_operation,__E_W,string_6).
+__E_W_ptr_src is Edge("src",Transition_ptr_src,__E_W,__E_v).
+__E_W_ptr_dst is Edge("dst",Transition_ptr_dst,__E_W,__E_t).
+__E_V is Node("/E/V",Transition).
+NodeInheritance(Transition,__E_V).
+__E_V_attr_name is Edge("name",FCO_attr_name,__E_V,string_2).
+__E_V_attr_guard is Edge("guard",Transition_attr_guard,__E_V,string_3).
+__E_V_attr_operation is Edge("operation",Transition_attr_operation,__E_V,string_7).
+__E_V_ptr_src is Edge("src",Transition_ptr_src,__E_V,__E_3).
+__E_V_ptr_dst is Edge("dst",Transition_ptr_dst,__E_V,__E_3).
+__E_J is Node("/E/J",Transition).
+NodeInheritance(Transition,__E_J).
+__E_J_attr_name is Edge("name",FCO_attr_name,__E_J,string_2).
+__E_J_attr_guard is Edge("guard",Transition_attr_guard,__E_J,string_8).
+__E_J_attr_operation is Edge("operation",Transition_attr_operation,__E_J,string_9).
+__E_J_ptr_src is Edge("src",Transition_ptr_src,__E_J,__E_v).
+__E_J_ptr_dst is Edge("dst",Transition_ptr_dst,__E_J,__E_v).
+__E_M is Node("/E/M",Initial).
+NodeInheritance(Initial,__E_M).
+__E_M_attr_name is Edge("name",FCO_attr_name,__E_M,string_10).
+__E_t is Node("/E/t",End).
+NodeInheritance(End,__E_t).
+__E_t_attr_name is Edge("name",FCO_attr_name,__E_t,string_11).
+__E_v is Node("/E/v",State).
+NodeInheritance(State,__E_v).
+__E_v_attr_name is Edge("name",FCO_attr_name,__E_v,string_12).
+__E_H is Node("/E/H",Documentation).
+NodeInheritance(Documentation,__E_H).
+__E_H_attr_name is Edge("name",FCO_attr_name,__E_H,string_13).
+__E_H_attr_documentation is Edge("documentation",Documentation_attr_documentation,__E_H,string_14).
+__E_K is Node("/E/K",Transition).
+NodeInheritance(Transition,__E_K).
+__E_K_attr_name is Edge("name",FCO_attr_name,__E_K,string_2).
+__E_K_attr_guard is Edge("guard",Transition_attr_guard,__E_K,string_8).
+__E_K_attr_operation is Edge("operation",Transition_attr_operation,__E_K,string_9).
+__E_K_ptr_src is Edge("src",Transition_ptr_src,__E_K,__E_M).
+__E_K_ptr_dst is Edge("dst",Transition_ptr_dst,__E_K,__E_v).
+__E_P is Node("/E/P",Transition).
+NodeInheritance(Transition,__E_P).
+__E_P_attr_name is Edge("name",FCO_attr_name,__E_P,string_2).
+__E_P_attr_guard is Edge("guard",Transition_attr_guard,__E_P,string_5).
+__E_P_attr_operation is Edge("operation",Transition_attr_operation,__E_P,string_6).
+__E_P_ptr_src is Edge("src",Transition_ptr_src,__E_P,__E_M).
+__E_P_ptr_dst is Edge("dst",Transition_ptr_dst,__E_P,__E_t).
+string_0 is Node("TenMachine",string).
+NodeInheritance(string,string_0).
+string_1 is Node("State One",string).
+NodeInheritance(string,string_1).
+string_2 is Node("Transition",string).
+NodeInheritance(string,string_2).
+string_3 is Node("x>10",string).
+NodeInheritance(string,string_3).
+string_4 is Node("x := x-1",string).
+NodeInheritance(string,string_4).
+string_5 is Node("x=10",string).
+NodeInheritance(string,string_5).
+string_6 is Node("",string).
+NodeInheritance(string,string_6).
+string_7 is Node("x:=x-1",string).
+NodeInheritance(string,string_7).
+string_8 is Node("x<10",string).
+NodeInheritance(string,string_8).
+string_9 is Node("x:=x+1",string).
+NodeInheritance(string,string_9).
+string_10 is Node("Initial",string).
+NodeInheritance(string,string_10).
+string_11 is Node("End",string).
+NodeInheritance(string,string_11).
+string_12 is Node("State Two",string).
+NodeInheritance(string,string_12).
+string_13 is Node("Parameters",string).
+NodeInheritance(string,string_13).
+string_14 is Node("- inputs: x in Z_nl_- outputs: x_nl_",string).
+NodeInheritance(string,string_14).
+
+}
