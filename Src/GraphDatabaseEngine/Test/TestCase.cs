@@ -44,7 +44,67 @@
 
         public List<Dictionary<string, object>> Test2(GraphDBExecutor executor)
         {
-            GremlinTranslator translator = new GremlinTranslator("test2.4ml");
+            GremlinTranslator translator = new GremlinTranslator("modular_phone.4ml");
+            translator.ExportAllDomainToGraphDB(executor);
+            string query = "NodeInstanceOf(b,i)";
+            Body body = translator.ParseQueryString(query);
+            DomainStore store = translator.DomainStores["WebGME"];
+            PrintBooleanMap(store);
+            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "b", "i" });
+            return queryResult;
+        }
+
+        public List<Dictionary<string, object>> Test3(GraphDBExecutor executor)
+        {
+            GremlinTranslator translator = new GremlinTranslator("producer_consumer.4ml");
+            translator.ExportAllDomainToGraphDB(executor);
+            string query = "NodeInstanceOf(b,i)";
+            Body body = translator.ParseQueryString(query);
+            DomainStore store = translator.DomainStores["WebGME"];
+            PrintBooleanMap(store);
+            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "b", "i" });
+            return queryResult;
+        }
+
+        public List<Dictionary<string, object>> Test4(GraphDBExecutor executor)
+        {
+            GremlinTranslator translator = new GremlinTranslator("switchable_routes.4ml");
+            translator.ExportAllDomainToGraphDB(executor);
+            string query = "NodeInstanceOf(b,i)";
+            Body body = translator.ParseQueryString(query);
+            DomainStore store = translator.DomainStores["WebGME"];
+            PrintBooleanMap(store);
+            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "b", "i" });
+            return queryResult;
+        }
+
+        public List<Dictionary<string, object>> Test5(GraphDBExecutor executor)
+        {
+            GremlinTranslator translator = new GremlinTranslator("trackers_and_peers.4ml");
+            translator.ExportAllDomainToGraphDB(executor);
+            string query = "NodeInstanceOf(b,i)";
+            Body body = translator.ParseQueryString(query);
+            DomainStore store = translator.DomainStores["WebGME"];
+            PrintBooleanMap(store);
+            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "b", "i" });
+            return queryResult;
+        }
+
+        public List<Dictionary<string, object>> Test6(GraphDBExecutor executor)
+        {
+            GremlinTranslator translator = new GremlinTranslator("ten_machine_counter.4ml");
+            translator.ExportAllDomainToGraphDB(executor);
+            string query = "NodeInstanceOf(b,i)";
+            Body body = translator.ParseQueryString(query);
+            DomainStore store = translator.DomainStores["WebGME"];
+            PrintBooleanMap(store);
+            var queryResult = translator.GetQueryResult(executor, store, body, new List<string> { "b", "i" });
+            return queryResult;
+        }
+
+        public List<Dictionary<string, object>> Test7(GraphDBExecutor executor)
+        {
+            GremlinTranslator translator = new GremlinTranslator("bip.4ml");
             translator.ExportAllDomainToGraphDB(executor);
             string query = "NodeInstanceOf(b,i)";
             Body body = translator.ParseQueryString(query);
