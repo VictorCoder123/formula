@@ -20,10 +20,29 @@ returns (out:: GraphDatabase)
   ms is in.Multiplicity(slow, shigh), md is in.Multiplicity(dlow, dhigh).
 }
 
+
+// ap R = FormulaRuleToGremlinQuery(tenMachineFormulaQueries)
+// ex 0 R (ex TaskId ResultName)
+// sv R r.4ml
 transform FormulaRuleToGremlinQuery (in:: Formula)
 returns (out:: Gremlin)
 {
 
+  // Traversal for model expressions.
+  out.AsStep(
+    label.name, out.HasStep(
+      "type", type.name, out.HasStep(
+        "domain", "WebGME", out.InVStep(
+          arg_x, out.AsStep(instanceLabel, NIL)))))
+
+  :-
+
+  in.Body(expr, instance_index, body),
+  expr = in.ModelExpr(type, labels),
+  in.LabelsSubterm(labels, labels_x),
+  labels_x = in.Labels(label, label_index, _),
+  arg_x = strJoin("ARG_", toString(label_index)),
+  instanceLabel = strJoin("instance_", strJoin(toString(instance_index), strJoin("_of_", label.type.name))).
 }
 
 
@@ -173,8 +192,10 @@ domain Formula
   Domain ::= new (String).
   FormulaBuiltInType ::= Integer + String + {NIL}.
   BaseType ::= new (name: String, argus: any Arguments + {NIL}).
-  EnumType ::= new (cur: FormulaBuiltInType, nxt: any EnumType + {NIL}).
-  UnionType ::= new (cur: any BaseType + EnumType, nxt: any UnionType + {NIL}).
+  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumType + {NIL}).
+  EnumType ::= new (name: String, list: any EnumList).
+  UnionList ::= new (cur: any BaseType + EnumType, nxt: any UnionList + {NIL}).
+  UnionType ::= new (name: String, list: any UnionList).
   Type ::= BaseType + EnumType + UnionType.
 
   Argument ::= new (label: String + {NIL}, type: any Type).
@@ -188,15 +209,28 @@ domain Formula
   ModelExpr ::= new (type: Type, labels: Labels).
   BoolExpr ::= new (label: Label).
   Expr ::= BinaryExpr + ModelExpr + BoolExpr.
-  Body ::= new (cur: Expr, nxt: any Body + {NIL}).
-  Head ::= new (cur: ModelExpr + BoolExpr, nxt: any ModelExpr + BoolExpr + {NIL}).
+  Body ::= new (cur: Expr, index: Integer, nxt: any Body + {NIL}).
+  Head ::= new (cur: ModelExpr + BoolExpr, index: Integer, nxt: any ModelExpr + BoolExpr + {NIL}).
   Rule ::= new (head: Head, body: Body).
+
+  // TODO: Find out why FORMULA cannot infer subterm() from nested ground terms like Labels(..., Labels()).
+  // qr tenMachineFormulaQueries count({t | t is LabelsSubterm}) = 3
+  LabelsSubterm ::= (Labels, Labels).
+  LabelsSubterm(m, m) :- m is Labels(_,_,_).
+  LabelsSubterm(m, n) :- m is Labels(_,_,n), n is Labels(_,_,_).
+  LabelsSubterm(a, c) :- LabelsSubterm(a, b), LabelsSubterm(b, c).
+
+  BodySubterm ::= (Body, Body).
+  BodySubterm(m, m) :- m is Body(_,_,_).
+  BodySubterm(m, n) :- m is Body(_,_,n), n is Body(_,_,_).
+  BodySubterm(a, c) :- BodySubterm(a, b), BodySubterm(b, c).
+
 
   // Conforms ...
 }
 
 
-model tenMachineQueries of Formula
+model tenMachineFormulaQueries of Formula
 {
   String is BaseType("String", NIL).
   Integer is BaseType("Integer", NIL).
@@ -220,8 +254,12 @@ model tenMachineQueries of Formula
   EdgeArgus_3 is Arguments(Argument("dst", Node), 3, NIL).
   Edge is BaseType("Edge", EdgeArgus_0).
 
-  StarEnumType is EnumType("*", NIL).
-  MulUnionType is UnionType(StarEnumType, UnionType(Integer, NIL)).
+  StarEnumList is EnumList("*", NIL).
+  StarEnumType is EnumType("star", StarEnumList).
+
+  MulUnionList_0 is UnionList(StarEnumType, MulUnionList_1).
+  MulUnionList_1 is UnionList(Integer, NIL).
+  MulUnionType is UnionType("multiplicity_union_type", MulUnionList_0).
   MultiplicityArgus_0 is Arguments(Argument("low", Integer), 0, MultiplicityArgus_1).
   MultiplicityArgus_1 is Arguments(Argument("high", MulUnionType), 1, NIL).
   Multiplicity is BaseType("Multiplicity", MultiplicityArgus_0).
@@ -230,13 +268,24 @@ model tenMachineQueries of Formula
   low is Label("low", Integer, NIL).
   high is Label("high", MulUnionType, NIL).
   WrongMultiplicity is Label("WrongMultiplicity", Boolean, NIL).
+
   binaryExpr_0 is BinaryExpr(NEQ, high, "*").
   binaryExpr_1 is BinaryExpr(GT, low, high).
-  modelExpr_0 is ModelExpr(Multiplicity, Labels(low, 0, Labels(high, 1, NIL))).
+
+  labels_0_0 is Labels(low, 0, labels_0_1).
+  labels_0_1 is Labels(high, 1, NIL).
+  modelExpr_0 is ModelExpr(Multiplicity, labels_0_0).
+
   boolExpr_0 is BoolExpr(WrongMultiplicity).
-  body is Body(modelExpr_0, Body(binaryExpr_0, Body(binaryExpr_1, NIL))).
-  head is Head(boolExpr_0, NIL).
-  wrongMultiplicityRule is Rule(head, body).
+
+  body_0 is Body(modelExpr_0, 0, body_1).
+  body_1 is Body(binaryExpr_0, 1, body_2).
+  body_2 is Body(binaryExpr_1, 2, NIL).
+
+  head is Head(boolExpr_0, 0, NIL).
+  wrongMultiplicityRule is Rule(head, body_0).
+
+  //Labels(low, 0, Labels(high, 1, NIL)).
 }
 
 
