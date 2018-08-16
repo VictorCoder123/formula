@@ -27,8 +27,7 @@ returns (out:: GraphDatabase)
 transform FormulaRuleToGremlinQuery (in:: Formula)
 returns (out:: Gremlin)
 {
-
-  // Traversal for model expressions.
+  // Gremlin traversal models for model expressions.
   out.AsStep(
     label.name, out.HasStep(
       "type", type.name, out.HasStep(
@@ -43,6 +42,14 @@ returns (out:: Gremlin)
   labels_x = in.Labels(label, label_index, _),
   arg_x = strJoin("ARG_", toString(label_index)),
   instanceLabel = strJoin("instance_", strJoin(toString(instance_index), strJoin("_of_", label.type.name))).
+
+  // Gremlin traversal models for binary expressions.
+  out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr1(_,left,_), valueStr = strJoin(left.name, "_value").
+  out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr2(_,left,_), valueStr = strJoin(left.name, "_value").
+  out.AsStep(right.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr1(_,_,right), valueStr = strJoin(right.name, "_value").
+
+  out.WhereStep(lvalueStr, out.Predicate(op, rvalueStr)) :- in.BinaryExpr1(op, left, right), lvalueStr = strJoin(left.name, "_value"), rvalueStr = strJoin(right.name, "_value").
+  out.WhereStep(lvalueStr, out.Predicate(op, right)) :- in.BinaryExpr2(op, left, right), lvalueStr = strJoin(left.name, "_value").
 }
 
 
@@ -95,7 +102,7 @@ domain GraphDatabase
 domain Gremlin extends GraphDatabase
 {
   Strings ::= new (cur: String, index: Integer, nxt: any Strings + {NIL}).
-  Predicate ::= new (op: Operator, value: any String + Integer).
+  Predicate ::= new (op: Operator, value: any String + Integer + Boolean + {NIL}).
 
   // All Steps definition in Gremlin.
   VStep ::= new (num: any Integer + {NIL}, nxt: any Step + {NIL}).
@@ -119,14 +126,14 @@ domain Gremlin extends GraphDatabase
   Step ::= VStep + HasStep + ByStep + AsStep + SelectStep + FilterStep + MatchStep + OutVStep + InVStep + OutEStep + InEStep + ValuesStep + IsStep + WhereStep.
 
   // Instruction contains a list of chains represented by their first element.
-  Instruction ::= Expression + Step.
+  Instruction ::= GremlinExpression + Step.
   Instructions ::= new (cur: any Instruction, nxt: any Instructions + {NIL}).
 
   VariableDecl ::= new (label: String, nxt: any Step).
   Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
-  BinaryExpr ::= new (op: Operator, label1: String, label2: String).
-  UnaryExpr ::= new (label: String).
-  Expression ::= BinaryExpr + UnaryExpr.
+  GremlinBinaryExpr ::= new (op: Operator, left: any String + Integer, right: any String + Integer).
+  GremlinUnaryExpr ::= new (label: String).
+  GremlinExpression ::= GremlinBinaryExpr + GremlinUnaryExpr.
   MethodCall ::= {ToList, IsEmpty}.
   TraversalElement ::= VariableDecl + Step + MethodCall.
 
@@ -192,7 +199,7 @@ domain Formula
   Domain ::= new (String).
   FormulaBuiltInType ::= Integer + String + {NIL}.
   BaseType ::= new (name: String, argus: any Arguments + {NIL}).
-  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumType + {NIL}).
+  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumList + {NIL}).
   EnumType ::= new (name: String, list: any EnumList).
   UnionList ::= new (cur: any BaseType + EnumType, nxt: any UnionList + {NIL}).
   UnionType ::= new (name: String, list: any UnionList).
@@ -203,18 +210,31 @@ domain Formula
 
   // Related to Formula rule like TRUE :- C(a, b).
   Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
-  Label ::= new (name: String, type: Type, fragments: any Label + {NIL}).
-  Labels ::= new (cur: Label, index: Integer, nxt: any Labels + {NIL}).
-  BinaryExpr ::= new (op: Operator, left: Label, right: Label + FormulaBuiltInType).
+  Label ::= new (name: String, type: any Type + {NIL}, fragments: any Labels + {NIL}).
+  Labels ::= new (cur: any Label, index: Integer, nxt: any Labels + {NIL}).
+
+  // Expressions
+  Expr ::= BinaryExpr1 + BinaryExpr2 + BinaryExpr3 + ModelExpr + BoolExpr.
+  BinaryExpr1 ::= new (op: Operator, left: Label, right: any Label).
+  BinaryExpr2 ::= new (op: Operator, left: Label, right: any FormulaBuiltInType).
+  BinaryExpr3 ::= new (op: Operator, left: any Count, right: any Label + Integer).
   ModelExpr ::= new (type: Type, labels: Labels).
   BoolExpr ::= new (label: Label).
-  Expr ::= BinaryExpr + ModelExpr + BoolExpr.
-  Body ::= new (cur: Expr, index: Integer, nxt: any Body + {NIL}).
+
+  // Interpreted functions
+  InterpretedFunc ::= Count + Min + Max.
+  // Cannot have nested Count function inside Count function due to scope access.
+  // Conforms: label must also occur in Body.
+  Count ::= new (label: Label, body: any Body).
+  Min ::= new (x: Integer, y: Integer).
+  Max ::= new (x: Integer, y: Integer).
+
+  Body ::= new (cur: any Expr, index: Integer, nxt: any Body + {NIL}).
   Head ::= new (cur: ModelExpr + BoolExpr, index: Integer, nxt: any ModelExpr + BoolExpr + {NIL}).
   Rule ::= new (head: Head, body: Body).
 
   // TODO: Find out why FORMULA cannot infer subterm() from nested ground terms like Labels(..., Labels()).
-  // qr tenMachineFormulaQueries count({t | t is LabelsSubterm}) = 3
+  // Many List interpreted functions are not implemented in FORMULA, so constructor Subterm() is defined for all list of different types
   LabelsSubterm ::= (Labels, Labels).
   LabelsSubterm(m, m) :- m is Labels(_,_,_).
   LabelsSubterm(m, n) :- m is Labels(_,_,n), n is Labels(_,_,_).
@@ -225,6 +245,15 @@ domain Formula
   BodySubterm(m, n) :- m is Body(_,_,n), n is Body(_,_,_).
   BodySubterm(a, c) :- BodySubterm(a, b), BodySubterm(b, c).
 
+  EnumListSubterm ::= (EnumList, EnumList).
+  EnumListSubterm(m, m) :- m is EnumList(_,_).
+  EnumListSubterm(m, n) :- m is EnumList(_,n), n is EnumList(_,_).
+  EnumListSubterm(a, c) :- EnumListSubterm(a, b), EnumListSubterm(b, c).
+
+  UnionListSubterm ::= (UnionList, UnionList).
+  UnionListSubterm(m, m) :- m is UnionList(_,_).
+  UnionListSubterm(m, n) :- m is UnionList(_,n), n is UnionList(_,_).
+  UnionListSubterm(a, c) :- UnionListSubterm(a, b), UnionListSubterm(b, c).
 
   // Conforms ...
 }
@@ -260,17 +289,28 @@ model tenMachineFormulaQueries of Formula
   MulUnionList_0 is UnionList(StarEnumType, MulUnionList_1).
   MulUnionList_1 is UnionList(Integer, NIL).
   MulUnionType is UnionType("multiplicity_union_type", MulUnionList_0).
+
   MultiplicityArgus_0 is Arguments(Argument("low", Integer), 0, MultiplicityArgus_1).
   MultiplicityArgus_1 is Arguments(Argument("high", MulUnionType), 1, NIL).
   Multiplicity is BaseType("Multiplicity", MultiplicityArgus_0).
+
+  MetaNodeUnionList_0 is UnionList(MetaNode, MetaNodeUnionList_1).
+  MetaNodeUnionList_1 is UnionList(Node, NIL).
+  MetaNodeUnionType is UnionType("metanode_node_union_type", MetaNodeUnionList_0).
+
+  NodeInheritanceArgus_0 is Arguments(Argument("base", MetaNode), 0, NodeInheritanceArgus_1).
+  NodeInheritanceArgus_1 is Arguments(Argument("instance", MetaNodeUnionType), 1, NIL).
+  NodeInheritance is BaseType("NodeInheritance", NodeInheritanceArgus_0).
+
+  NodeInstanceOf is BaseType("NodeInstanceOf", NodeInheritanceArgus_0).
 
   // Models for Formula rule: WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
   low is Label("low", Integer, NIL).
   high is Label("high", MulUnionType, NIL).
   WrongMultiplicity is Label("WrongMultiplicity", Boolean, NIL).
 
-  binaryExpr_0 is BinaryExpr(NEQ, high, "*").
-  binaryExpr_1 is BinaryExpr(GT, low, high).
+  binaryExpr_0 is BinaryExpr2(NEQ, high, "*").
+  binaryExpr_1 is BinaryExpr1(GT, low, high).
 
   labels_0_0 is Labels(low, 0, labels_0_1).
   labels_0_1 is Labels(high, 1, NIL).
@@ -285,7 +325,42 @@ model tenMachineFormulaQueries of Formula
   head is Head(boolExpr_0, 0, NIL).
   wrongMultiplicityRule is Rule(head, body_0).
 
-  //Labels(low, 0, Labels(high, 1, NIL)).
+  // Models for Formula rule: not6b :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), m.ms.high != "*", count({s|s is Node, e is Edge (_,m,s,n)}) > m.ms.high.
+
+  underscore is Label("_", NIL, NIL).
+  s is Label("s", Node, NIL).
+  n is Label("n", Node, NIL).
+  m is Label("m", MetaEdge, NIL).
+  m_dst_fragment_0 is Labels(Label("m", MetaEdge, NIL), 0, NIL).
+  m_dst is Label("m.dst", MetaNode, m_dst_fragment_0).
+
+  m_ms_high_fragment_0 is Labels(Label("m.ms", Multiplicity, NIL), 0, m_ms_high_fragment_1).
+  m_ms_high_fragment_1 is Labels(Label("m", MetaEdge, NIL), 1, NIL).
+  m_ms_high is Label("m.ms.high", MulUnionType, m_ms_high_fragment_0).
+
+  labels_1_0 is Labels(m_dst, 0, labels_1_1).
+  labels_1_1 is Labels(n, 1, NIL).
+  not6b_modelExpr_1 is ModelExpr(NodeInstanceOf, labels_1_0).
+
+  not6b_binaryExpr_1 is BinaryExpr2(NEQ, m_ms_high, "*").
+
+  labels_2_0 is Labels(underscore, 0, labels_2_1).
+  labels_2_1 is Labels(m, 1, labels_2_2).
+  labels_2_2 is Labels(s, 2, labels_2_3).
+  labels_2_3 is Labels(n, 3, NIL).
+  not6b_count_modelExpr is ModelExpr(Edge, labels_2_0).
+  not6b_count_body_0 is Body(not6b_count_modelExpr, 0, NIL).
+  not6b_count is Count(s, not6b_count_body_0).
+  not6b_binaryExpr_2 is BinaryExpr3(GT, not6b_count, m_ms_high).
+
+  not6b_body is Body(not6b_modelExpr_1, 0, not6b_body_1).
+  not6b_body_1 is Body(not6b_binaryExpr_1, 1, not6b_body_2).
+  not6b_body_2 is Body(not6b_binaryExpr_2, 2, NIL).
+
+  not6b is Label("not6b", Boolean, NIL).
+  not6b_boolExpr_0 is BoolExpr(not6b).
+  not6b_head is Head(not6b_boolExpr_0, 0, NIL).
+  not6b_rule is Rule(not6b_head, not6b_body).
 }
 
 
