@@ -1,0 +1,65 @@
+﻿domain Formula
+{
+  Domain ::= new (String).
+  FormulaBuiltInType ::= Integer + String + {NIL}.
+  BaseType ::= new (name: String, argus: any Arguments + {NIL}).
+  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumList + {NIL}).
+  EnumType ::= new (name: String, list: any EnumList).
+  UnionList ::= new (cur: any BaseType + EnumType, nxt: any UnionList + {NIL}).
+  UnionType ::= new (name: String, list: any UnionList).
+  Type ::= BaseType + EnumType + UnionType.
+
+  Argument ::= new (label: String + {NIL}, type: any Type).
+  Arguments ::= new (cur: any Argument, index: Integer, nxt: any Arguments + {NIL}).
+
+  // Related to Formula rule like TRUE :- C(a, b).
+  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
+  Label ::= new (name: String, type: any Type + {NIL}, fragments: any Labels + {NIL}).
+  Labels ::= new (cur: any Label, index: Integer, nxt: any Labels + {NIL}).
+
+  // Expressions
+  Expr ::= BinaryExpr1 + BinaryExpr2 + BinaryExpr3 + ModelExpr + BoolExpr.
+
+  // Separate Label and FormulaBuiltInType to avoid unsafe type in model transformation.
+  BinaryExpr1 ::= new (op: Operator, left: Label, right: any Label).
+  BinaryExpr2 ::= new (op: Operator, left: Label, right: any FormulaBuiltInType).
+  BinaryExpr3 ::= new (op: Operator, left: any Count, right: any Label + Integer).
+  ModelExpr ::= new (type: Type, labels: Labels).
+  BoolExpr ::= new (label: Label).
+
+  // Interpreted functions
+  InterpretedFunc ::= Count + Min + Max.
+  // Cannot have nested Count function inside Count function due to scope access.
+  // Conforms: label must also occur in Body.
+  Count ::= new (label: Label, body: any Body).
+  Min ::= new (x: Integer, y: Integer).
+  Max ::= new (x: Integer, y: Integer).
+
+  Body ::= new (cur: any Expr, index: Integer, nxt: any Body + {NIL}).
+  Head ::= new (cur: ModelExpr + BoolExpr, index: Integer, nxt: any ModelExpr + BoolExpr + {NIL}).
+  Rule ::= new (name: String, head: Head, body: Body).
+
+  // TODO: Find out why FORMULA cannot infer subterm() from nested ground terms like Labels(..., Labels()).
+  // Many List interpreted functions are not implemented in FORMULA, so constructor Subterm() is defined for all list of different types
+  LabelsSubterm ::= (Labels, Labels).
+  LabelsSubterm(m, m) :- m is Labels(_,_,_).
+  LabelsSubterm(m, n) :- m is Labels(_,_,n), n is Labels(_,_,_).
+  LabelsSubterm(a, c) :- LabelsSubterm(a, b), LabelsSubterm(b, c).
+
+  BodySubterm ::= (Body, Body).
+  BodySubterm(m, m) :- m is Body(_,_,_).
+  BodySubterm(m, n) :- m is Body(_,_,n), n is Body(_,_,_).
+  BodySubterm(a, c) :- BodySubterm(a, b), BodySubterm(b, c).
+
+  EnumListSubterm ::= (EnumList, EnumList).
+  EnumListSubterm(m, m) :- m is EnumList(_,_).
+  EnumListSubterm(m, n) :- m is EnumList(_,n), n is EnumList(_,_).
+  EnumListSubterm(a, c) :- EnumListSubterm(a, b), EnumListSubterm(b, c).
+
+  UnionListSubterm ::= (UnionList, UnionList).
+  UnionListSubterm(m, m) :- m is UnionList(_,_).
+  UnionListSubterm(m, n) :- m is UnionList(_,n), n is UnionList(_,_).
+  UnionListSubterm(a, c) :- UnionListSubterm(a, b), UnionListSubterm(b, c).
+
+  // Conforms ...
+}

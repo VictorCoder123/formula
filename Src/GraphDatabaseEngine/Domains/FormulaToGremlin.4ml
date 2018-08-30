@@ -1,0 +1,87 @@
+﻿// ap R = FormulaRuleToGremlinQuery(tenMachineFormulaQueries)
+// ex 0 R (ex TaskId ResultName)
+// sv R r.4ml
+transform FormulaRuleToGremlinQuery (in:: Formula)
+returns (out:: Gremlin)
+{
+  //ContainsExpr ::= (in.Rule, in.Body, out.).
+
+  // g.V().matchStep() for each rule.
+  out.VariableDecl("g", out.OutVStep(NIL, out.MatchStep(rule_name, NIL))) :- in.Rule(rule_name,_,_).
+
+  // Gremlin traversal models for model expressions.
+  out.VariableDecl("g", out.OutVStep(NIL, out.MatchStep(rule_name, NIL))),
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(
+      label.name, out.HasStep(
+        "type", type.name, out.HasStep(
+          "domain", "WebGME", out.InVStep(
+            arg_x, out.AsStep(instanceLabel, NIL)))))
+  )
+
+  :-
+
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.ModelExpr(type, labels),
+  in.LabelsSubterm(labels, labels_x),
+  labels_x = in.Labels(label, label_index, _),
+  arg_x = strJoin("ARG_", toString(label_index)),
+  instanceLabel = strJoin("instance_", strJoin(toString(instance_index), strJoin("_of_", label.type.name))).
+
+
+  // Gremlin traversal models for binary expressions.
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(_,left,_), valueStr = strJoin(left.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr is in.BinaryExpr2(_,left,_), valueStr = strJoin(left.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(right.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(_,_,right), valueStr = strJoin(right.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.WhereStep(lvalueStr, out.Predicate(op, rvalueStr))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(op, left, right), lvalueStr = strJoin(left.name, "_value"), rvalueStr = strJoin(right.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.WhereStep(lvalueStr, out.Predicate(op, right))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr2(op, left, right), lvalueStr = strJoin(left.name, "_value").
+}
