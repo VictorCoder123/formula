@@ -110,6 +110,52 @@
             }
         }
 
+        public List<KeyValuePair<string, int>> GetAllTypeInstancePair()
+        {
+            List<KeyValuePair<string, int>> list = new List<KeyValuePair<string, int>>();
+            foreach (string l in LabelInfoMap.Keys)
+            {
+                var labelInfoList = LabelInfoMap[l];
+                foreach (LabelInfo info in labelInfoList)
+                {
+                    bool exist = false;
+                    KeyValuePair<string, int> pair = new KeyValuePair<string, int>(info.Type, info.InstanceIndex);
+                    foreach (var p in list)
+                    {
+                        if (p.Key == pair.Key && p.Value == pair.Value)
+                        {
+                            exist = true;
+                        }
+                    }
+
+                    if (!exist)
+                    {
+                        list.Add(pair);
+                    }
+                }
+            }
+            return list;
+        }
+
+        public List<string> GetLabelsInSingleExpr(string type, int instanceIndex)
+        {
+            List<LabelInfo> list = new List<LabelInfo>();
+            foreach (string l in LabelInfoMap.Keys)
+            {
+                var labelInfoList = LabelInfoMap[l];
+                foreach (LabelInfo info in labelInfoList)
+                {
+                    if (info.Type == type && info.InstanceIndex == instanceIndex)
+                    {
+                        list.Add(info);
+                    }
+                }
+            }
+
+            list.Sort((x, y) => x.ArgIndex - y.ArgIndex);
+            return (List<string>) list.Select(x => GetLabelByLabelInfo(x));
+        }
+
         // Get all related labels like "a.b.c" related to label "a".
         public List<string> GetRelatedLabelsWithFragments(string label)
         {
@@ -227,6 +273,22 @@
             List<string> argTypes = Store.GetArgTypes(idType);
             //TypeArgsMap.TryGetValue(idType, out argTypes);
             return argTypes[index];
+        }
+
+        public string GetLabelByLabelInfo(LabelInfo info)
+        {
+            foreach (string label in LabelInfoMap.Keys)
+            {
+                var labelInfoList = LabelInfoMap[label];
+                foreach (LabelInfo labelInfo in labelInfoList)
+                {
+                    if (labelInfo == info)
+                    {
+                        return label;
+                    }
+                }
+            }
+            return null;
         }
 
         public List<LabelInfo> GetLabelOccuranceInfo(string label)

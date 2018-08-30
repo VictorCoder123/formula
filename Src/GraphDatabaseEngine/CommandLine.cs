@@ -34,7 +34,16 @@
         }
 
         public static void Main(string[] args)
-        { 
+        {
+            if (args != null && args.Length > 0 && args[0].Split('.')[1] == "4ml")
+            {
+                string inputFile = args[0];
+                Compiler compiler = new Compiler();
+                compiler.Compile(inputFile);
+            }
+                
+
+            /**
             GraphDBExecutor executor = new GraphDBExecutor("localhost", 8182);
 
             if (args != null && args.Length > 0 && args[0].Split('.')[1] == "4ml")
@@ -63,6 +72,7 @@
                     Console.WriteLine("----------------------");
                 }
             }
+            */
             
             string line = Console.ReadLine();
         }
