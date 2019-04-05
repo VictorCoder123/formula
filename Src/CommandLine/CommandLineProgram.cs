@@ -44,6 +44,23 @@
                         return;
                     }
 
+                    if (line == CommandInterface.TestQueryCommand)
+                    {
+                        ci.DoCommand("load graph.4ml");
+                        //ci.DoCommand("qr Path10 E(a, b), E(b, c), E(c, d)");
+                        ci.DoCommand("qr Path10 no E(x, y), E(y, z), E(z, x)");
+                    }
+                    else if (line == CommandInterface.TestTransformCommand)
+                    {
+                        ci.DoCommand("load graph.4ml");
+
+                    }
+                    else if (line == CommandInterface.TestSolveCommand)
+                    {
+                        ci.DoCommand("load graph.4ml");
+                        ci.DoCommand("solve pmodel 1 DAGs.conforms");
+                    }
+
                     ci.DoCommand(line);
                 }
             }

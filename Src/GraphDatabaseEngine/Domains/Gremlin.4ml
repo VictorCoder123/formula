@@ -1,0 +1,59 @@
+﻿domain GraphDatabase
+{
+  PropType ::= String + Integer + Boolean.
+  Vertex ::= new (name: any String + {NIL}, props: any PropertyList + {NIL}).
+  Edge ::= new (label: String, src: Vertex, dst: Vertex, props: any PropertyList + {NIL}).
+  Property ::= new (key: String, value: any PropType).
+
+  PropertyList ::= new (Property, any PropertyList + {NIL}).
+}
+
+domain Gremlin extends GraphDatabase
+{
+  Strings ::= new (cur: String, index: Integer, nxt: any Strings + {NIL}).
+  Predicate ::= new (op: Operator, value: any String + Integer + Boolean + {NIL}).
+
+  // All Steps definition in Gremlin.
+  VStep ::= new (num: any Integer + {NIL}, nxt: any Step + {NIL}).
+  ByStep ::= new (label: String).
+  HasStep ::= new (key: String, value: PropType, nxt: any Step + {NIL}).
+  AsStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
+  SelectStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
+  OutVStep ::= new (edge: any String + {NIL}, nxt: any Step).
+  InVStep ::= new (edge: String, nxt: any Step).
+  OutEStep ::= new (edge: String, nxt: any Step).
+  InEStep ::= new (edge: String, nxt: any Step).
+  FilterStep ::= new (nxt: any Step).
+  ValuesStep ::= new (key: String, nxt: any Step + {NIL}).
+  IsStep ::= new (pred: any String + Integer + Predicate).
+  WhereStep ::= new (label: String, pred: Predicate).
+
+
+  // Match Step contains a list of Instructions and does not care about the order of sub-steps.
+  MatchStep ::= new (name: String, nxt: any Step + {NIL}).
+  MatchStepContainsInstruction ::= new (match: MatchStep, ins: Instruction).
+
+  // Unify all types of traversal steps into Step.
+  Step ::= VStep + HasStep + ByStep + AsStep + SelectStep + FilterStep + MatchStep + OutVStep + InVStep + OutEStep + InEStep + ValuesStep + IsStep + WhereStep.
+
+  // Instruction contains a list of chains represented by their first element.
+  Instruction ::= GremlinExpression + Step + VariableDecl.
+  Instructions ::= new (cur: any Instruction, nxt: any Instructions + {NIL}).
+
+  VariableDecl ::= new (label: String, nxt: any Step).
+  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
+  GremlinBinaryExpr ::= new (op: Operator, left: any String + Integer, right: any String + Integer).
+  GremlinUnaryExpr ::= new (label: String).
+  GremlinExpression ::= GremlinBinaryExpr + GremlinUnaryExpr.
+  MethodCall ::= {ToList, IsEmpty}.
+  TraversalElement ::= VariableDecl + Step + MethodCall.
+
+  InstructionsSubterm ::= (Instructions, Instructions).
+  InstructionsSubterm(m, m) :- m is Instructions(_,_).
+  InstructionsSubterm(m, n) :- m is Instructions(_,n), n is Instructions(_,_).
+  InstructionsSubterm(a, c) :- InstructionsSubterm(a, b), InstructionsSubterm(b, c).
+
+  // Conforms ...
+  // 1. Each Traversal element only has one succeesor.
+  // 2. Set constraints for successor of traversal elements.
+}

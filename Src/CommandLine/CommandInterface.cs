@@ -23,6 +23,9 @@ namespace Microsoft.Formula.CommandLine
         private static readonly char[] cmdSplitChars = new char[] { ' ' };
         public const string ExitCommand = "exit";
         public const string ExitShortCommand = "x";
+        public const string TestQueryCommand = "test.q";
+        public const string TestTransformCommand = "test.t";
+        public const string TestSolveCommand = "test.s";
 
         private const string BusyMsg = "Busy; cancel or wait until operation completes";
         private const string UnkCmdMsg = "Unknown command '{0}'";
