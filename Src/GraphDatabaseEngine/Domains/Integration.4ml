@@ -27,15 +27,25 @@ returns (out:: GraphDatabase)
 transform FormulaRuleToGremlinQuery (in:: Formula)
 returns (out:: Gremlin)
 {
+  //ContainsExpr ::= (in.Rule, in.Body, out.).
+
+  // g.V().matchStep() for each rule.
+  out.VariableDecl("g", out.OutVStep(NIL, out.MatchStep(rule_name, NIL))) :- in.Rule(rule_name,_,_).
+
   // Gremlin traversal models for model expressions.
-  out.AsStep(
-    label.name, out.HasStep(
-      "type", type.name, out.HasStep(
-        "domain", "WebGME", out.InVStep(
-          arg_x, out.AsStep(instanceLabel, NIL)))))
+  out.VariableDecl("g", out.OutVStep(NIL, out.MatchStep(rule_name, NIL))),
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(
+      label.name, out.HasStep(
+        "type", type.name, out.HasStep(
+          "domain", "WebGME", out.InVStep(
+            arg_x, out.AsStep(instanceLabel, NIL)))))
+  )
 
   :-
 
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
   in.Body(expr, instance_index, body),
   expr = in.ModelExpr(type, labels),
   in.LabelsSubterm(labels, labels_x),
@@ -43,13 +53,189 @@ returns (out:: Gremlin)
   arg_x = strJoin("ARG_", toString(label_index)),
   instanceLabel = strJoin("instance_", strJoin(toString(instance_index), strJoin("_of_", label.type.name))).
 
-  // Gremlin traversal models for binary expressions.
-  out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr1(_,left,_), valueStr = strJoin(left.name, "_value").
-  out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr2(_,left,_), valueStr = strJoin(left.name, "_value").
-  out.AsStep(right.name, out.ValuesStep("value", out.AsStep(valueStr, NIL))) :- in.BinaryExpr1(_,_,right), valueStr = strJoin(right.name, "_value").
 
-  out.WhereStep(lvalueStr, out.Predicate(op, rvalueStr)) :- in.BinaryExpr1(op, left, right), lvalueStr = strJoin(left.name, "_value"), rvalueStr = strJoin(right.name, "_value").
-  out.WhereStep(lvalueStr, out.Predicate(op, right)) :- in.BinaryExpr2(op, left, right), lvalueStr = strJoin(left.name, "_value").
+  // Gremlin traversal models for binary expressions.
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(_,left,_), valueStr = strJoin(left.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(left.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr is in.BinaryExpr2(_,left,_), valueStr = strJoin(left.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.AsStep(right.name, out.ValuesStep("value", out.AsStep(valueStr, NIL)))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(_,_,right), valueStr = strJoin(right.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.WhereStep(lvalueStr, out.Predicate(op, rvalueStr))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr1(op, left, right), lvalueStr = strJoin(left.name, "_value"), rvalueStr = strJoin(right.name, "_value").
+
+
+
+  out.MatchStepContainsInstruction(out.MatchStep(rule_name, NIL),
+    out.WhereStep(lvalueStr, out.Predicate(op, right))
+  )
+  :-
+  in.Rule(rule_name, head, body_header),
+  in.BodySubterm(body_header, body),
+  in.Body(expr, instance_index, body),
+  expr = in.BinaryExpr2(op, left, right), lvalueStr = strJoin(left.name, "_value").
+}
+
+
+// Parse a Formula program and create Formula models for Formula.
+domain Formula
+{
+  Domain ::= new (String).
+  FormulaBuiltInType ::= Integer + String + {NIL}.
+  BaseType ::= new (name: String, argus: any Arguments + {NIL}).
+  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumList + {NIL}).
+  EnumType ::= new (name: String, list: any EnumList).
+  UnionList ::= new (cur: any BaseType + EnumType, nxt: any UnionList + {NIL}).
+  UnionType ::= new (name: String, list: any UnionList).
+  Type ::= BaseType + EnumType + UnionType.
+
+  Argument ::= new (label: String + {NIL}, type: any Type).
+  Arguments ::= new (cur: any Argument, index: Integer, nxt: any Arguments + {NIL}).
+
+  // Related to Formula rule like TRUE :- C(a, b).
+  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
+  Label ::= new (name: String, type: any Type + {NIL}, fragments: any Labels + {NIL}).
+  Labels ::= new (cur: any Label, index: Integer, nxt: any Labels + {NIL}).
+
+  // Expressions
+  Expr ::= BinaryExpr1 + BinaryExpr2 + BinaryExpr3 + ModelExpr + BoolExpr.
+
+  // Separate Label and FormulaBuiltInType to avoid unsafe type in model transformation.
+  BinaryExpr1 ::= new (op: Operator, left: Label, right: any Label).
+  BinaryExpr2 ::= new (op: Operator, left: Label, right: any FormulaBuiltInType).
+  BinaryExpr3 ::= new (op: Operator, left: any Count, right: any Label + Integer).
+  ModelExpr ::= new (type: Type, labels: Labels).
+  BoolExpr ::= new (label: Label).
+
+  // Interpreted functions
+  InterpretedFunc ::= Count + Min + Max.
+  // Cannot have nested Count function inside Count function due to scope access.
+  // Conforms: label must also occur in Body.
+  Count ::= new (label: Label, body: any Body).
+  Min ::= new (x: Integer, y: Integer).
+  Max ::= new (x: Integer, y: Integer).
+
+  Body ::= new (cur: any Expr, index: Integer, nxt: any Body + {NIL}).
+  Head ::= new (cur: ModelExpr + BoolExpr, index: Integer, nxt: any ModelExpr + BoolExpr + {NIL}).
+  Rule ::= new (name: String, head: Head, body: Body).
+
+  // TODO: Find out why FORMULA cannot infer subterm() from nested ground terms like Labels(..., Labels()).
+  // Many List interpreted functions are not implemented in FORMULA, so constructor Subterm() is defined for all list of different types
+  LabelsSubterm ::= (Labels, Labels).
+  LabelsSubterm(m, m) :- m is Labels(_,_,_).
+  LabelsSubterm(m, n) :- m is Labels(_,_,n), n is Labels(_,_,_).
+  LabelsSubterm(a, c) :- LabelsSubterm(a, b), LabelsSubterm(b, c).
+
+  BodySubterm ::= (Body, Body).
+  BodySubterm(m, m) :- m is Body(_,_,_).
+  BodySubterm(m, n) :- m is Body(_,_,n), n is Body(_,_,_).
+  BodySubterm(a, c) :- BodySubterm(a, b), BodySubterm(b, c).
+
+  EnumListSubterm ::= (EnumList, EnumList).
+  EnumListSubterm(m, m) :- m is EnumList(_,_).
+  EnumListSubterm(m, n) :- m is EnumList(_,n), n is EnumList(_,_).
+  EnumListSubterm(a, c) :- EnumListSubterm(a, b), EnumListSubterm(b, c).
+
+  UnionListSubterm ::= (UnionList, UnionList).
+  UnionListSubterm(m, m) :- m is UnionList(_,_).
+  UnionListSubterm(m, n) :- m is UnionList(_,n), n is UnionList(_,_).
+  UnionListSubterm(a, c) :- UnionListSubterm(a, b), UnionListSubterm(b, c).
+
+  // Conforms ...
+}
+
+
+domain GraphDatabase
+{
+  PropType ::= String + Integer + Boolean.
+  Vertex ::= new (name: any String + {NIL}, props: any PropertyList + {NIL}).
+  Edge ::= new (label: String, src: Vertex, dst: Vertex, props: any PropertyList + {NIL}).
+  Property ::= new (key: String, value: any PropType).
+
+  PropertyList ::= new (Property, any PropertyList + {NIL}).
+}
+
+domain Gremlin extends GraphDatabase
+{
+  Strings ::= new (cur: String, index: Integer, nxt: any Strings + {NIL}).
+  Predicate ::= new (op: Operator, value: any String + Integer + Boolean + {NIL}).
+
+  // All Steps definition in Gremlin.
+  VStep ::= new (num: any Integer + {NIL}, nxt: any Step + {NIL}).
+  ByStep ::= new (label: String).
+  HasStep ::= new (key: String, value: PropType, nxt: any Step + {NIL}).
+  AsStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
+  SelectStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
+  OutVStep ::= new (edge: any String + {NIL}, nxt: any Step).
+  InVStep ::= new (edge: String, nxt: any Step).
+  OutEStep ::= new (edge: String, nxt: any Step).
+  InEStep ::= new (edge: String, nxt: any Step).
+  FilterStep ::= new (nxt: any Step).
+  ValuesStep ::= new (key: String, nxt: any Step + {NIL}).
+  IsStep ::= new (pred: any String + Integer + Predicate).
+  WhereStep ::= new (label: String, pred: Predicate).
+
+
+  // Match Step contains a list of Instructions and does not care about the order of sub-steps.
+  MatchStep ::= new (name: String, nxt: any Step + {NIL}).
+  MatchStepContainsInstruction ::= new (match: MatchStep, ins: Instruction).
+
+  // Unify all types of traversal steps into Step.
+  Step ::= VStep + HasStep + ByStep + AsStep + SelectStep + FilterStep + MatchStep + OutVStep + InVStep + OutEStep + InEStep + ValuesStep + IsStep + WhereStep.
+
+  // Instruction contains a list of chains represented by their first element.
+  Instruction ::= GremlinExpression + Step + VariableDecl.
+  Instructions ::= new (cur: any Instruction, nxt: any Instructions + {NIL}).
+
+  VariableDecl ::= new (label: String, nxt: any Step).
+  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
+  GremlinBinaryExpr ::= new (op: Operator, left: any String + Integer, right: any String + Integer).
+  GremlinUnaryExpr ::= new (label: String).
+  GremlinExpression ::= GremlinBinaryExpr + GremlinUnaryExpr.
+  MethodCall ::= {ToList, IsEmpty}.
+  TraversalElement ::= VariableDecl + Step + MethodCall.
+
+  InstructionsSubterm ::= (Instructions, Instructions).
+  InstructionsSubterm(m, m) :- m is Instructions(_,_).
+  InstructionsSubterm(m, n) :- m is Instructions(_,n), n is Instructions(_,_).
+  InstructionsSubterm(a, c) :- InstructionsSubterm(a, b), InstructionsSubterm(b, c).
+
+  // Conforms ...
+  // 1. Each Traversal element only has one succeesor.
+  // 2. Set constraints for successor of traversal elements.
 }
 
 
@@ -86,176 +272,6 @@ domain WebGME
 
   not7 :- m is MetaEdge, n is Node, NodeInstanceOf(m.dst,n), m.ms.low != 0, no{e | e is Edge(_,m,_,n)}.
 
-}
-
-
-domain GraphDatabase
-{
-  PropType ::= String + Integer + Boolean.
-  Vertex ::= new (name: any String + {NIL}, props: any PropertyList + {NIL}).
-  Edge ::= new (label: String, src: Vertex, dst: Vertex, props: any PropertyList + {NIL}).
-  Property ::= new (key: String, value: any PropType).
-
-  PropertyList ::= new (Property, any PropertyList + {NIL}).
-}
-
-domain Gremlin extends GraphDatabase
-{
-  Strings ::= new (cur: String, index: Integer, nxt: any Strings + {NIL}).
-  Predicate ::= new (op: Operator, value: any String + Integer + Boolean + {NIL}).
-
-  // All Steps definition in Gremlin.
-  VStep ::= new (num: any Integer + {NIL}, nxt: any Step + {NIL}).
-  ByStep ::= new (label: String).
-  HasStep ::= new (key: String, value: PropType, nxt: any Step + {NIL}).
-  AsStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
-  SelectStep ::= new (labels: any String + Strings, nxt: any Step + {NIL}).
-  OutVStep ::= new (edge: String, nxt: any Step).
-  InVStep ::= new (edge: String, nxt: any Step).
-  OutEStep ::= new (edge: String, nxt: any Step).
-  InEStep ::= new (edge: String, nxt: any Step).
-  FilterStep ::= new (nxt: any Step).
-  ValuesStep ::= new (key: String, nxt: any Step + {NIL}).
-  IsStep ::= new (pred: any String + Integer + Predicate).
-  WhereStep ::= new (label: String, pred: Predicate).
-
-
-  // Match Step contains a list of Instructions.
-  MatchStep ::= new (ins: any Instructions, nxt: any Step).
-
-  Step ::= VStep + HasStep + ByStep + AsStep + SelectStep + FilterStep + MatchStep + OutVStep + InVStep + OutEStep + InEStep + ValuesStep + IsStep + WhereStep.
-
-  // Instruction contains a list of chains represented by their first element.
-  Instruction ::= GremlinExpression + Step.
-  Instructions ::= new (cur: any Instruction, nxt: any Instructions + {NIL}).
-
-  VariableDecl ::= new (label: String, nxt: any Step).
-  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
-  GremlinBinaryExpr ::= new (op: Operator, left: any String + Integer, right: any String + Integer).
-  GremlinUnaryExpr ::= new (label: String).
-  GremlinExpression ::= GremlinBinaryExpr + GremlinUnaryExpr.
-  MethodCall ::= {ToList, IsEmpty}.
-  TraversalElement ::= VariableDecl + Step + MethodCall.
-
-  // Conforms ...
-  // 1. Each Traversal element only has one succeesor.
-  // 2. Set constraints for successor of traversal elements.
-}
-
-model tenMachineGraphQueries of Gremlin
-{
-  // Graph queries for Formula rule: WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
-  //  g.V().matchStep(
-  //    __.as("low").Has("type", "Multiplicity").Has("domain", "WebGME").in("ARG_0").as("0_instance_of_M"),
-  //    __.as("high").Has("type", "Multiplicity").Has("domain", "WebGME").in("ARG_1").as("0_instance_of_M"),
-  //    __.as("high").values("value").is(P.neq(*)),
-  //    __.as("low").values("value").as("low_value").
-  //    __.as("high").values("value").as("high_value"),
-  //    __.where("low_value", P.Gt("high_value"))
-  //  ).select("low", "high");
-
-  g is VariableDecl("g", v_step).
-  v_step is VStep(NIL, match_step).
-  match_step is MatchStep(instructions, select_step).
-  select_step is SelectStep(Strings("low", 0, Strings("high", 1, NIL)), NIL).
-
-  instructions is Instructions(instruction_0_0, instructions_1).
-  instructions_1 is Instructions(instruction_1_0, instructions_2).
-  instructions_2 is Instructions(instruction_2_0, instructions_3).
-  instructions_3 is Instructions(instruction_3_0, instructions_4).
-  instructions_4 is Instructions(instruction_4_0, instructions_5).
-  instructions_5 is Instructions(instruction_5_0, NIL).
-
-  instruction_0_0 is AsStep("low", instruction_0_1).
-  instruction_0_1 is HasStep("type", "Multiplicity", instruction_0_2).
-  instruction_0_2 is HasStep("domain", "WebGME", instruction_0_3).
-  instruction_0_3 is InVStep("ARG_0", instruction_0_4).
-  instruction_0_4 is AsStep("0_instance_of_M", NIL).
-
-  instruction_1_0 is AsStep("high", instruction_1_1).
-  instruction_1_1 is HasStep("type", "Multiplicity", instruction_1_2).
-  instruction_1_2 is HasStep("domain", "WebGME", instruction_1_3).
-  instruction_1_3 is InVStep("ARG_1", instruction_1_4).
-  instruction_1_4 is AsStep("0_instance_of_M", NIL).
-
-  instruction_2_0 is AsStep("high", instruction_2_1).
-  instruction_2_1 is ValuesStep("value", instruction_2_2).
-  instruction_2_2 is IsStep(Predicate(NEQ, "*")).
-
-  instruction_3_0 is AsStep("high", instruction_3_1).
-  instruction_3_1 is ValuesStep("value", instruction_3_2).
-  instruction_3_2 is AsStep("high_value", NIL).
-
-  instruction_4_0 is AsStep("low", instruction_4_1).
-  instruction_4_1 is ValuesStep("value", instruction_4_2).
-  instruction_4_2 is AsStep("low_value", NIL).
-
-  instruction_5_0 is WhereStep("low_value", Predicate(GT, "high_value")).
-}
-
-// Parse a Formula program and create Formula models for Formula.
-domain Formula
-{
-  Domain ::= new (String).
-  FormulaBuiltInType ::= Integer + String + {NIL}.
-  BaseType ::= new (name: String, argus: any Arguments + {NIL}).
-  EnumList ::= new (cur: FormulaBuiltInType, nxt: any EnumList + {NIL}).
-  EnumType ::= new (name: String, list: any EnumList).
-  UnionList ::= new (cur: any BaseType + EnumType, nxt: any UnionList + {NIL}).
-  UnionType ::= new (name: String, list: any UnionList).
-  Type ::= BaseType + EnumType + UnionType.
-
-  Argument ::= new (label: String + {NIL}, type: any Type).
-  Arguments ::= new (cur: any Argument, index: Integer, nxt: any Arguments + {NIL}).
-
-  // Related to Formula rule like TRUE :- C(a, b).
-  Operator ::= {EQ, NEQ, LT, LTE, GT, GTE}.
-  Label ::= new (name: String, type: any Type + {NIL}, fragments: any Labels + {NIL}).
-  Labels ::= new (cur: any Label, index: Integer, nxt: any Labels + {NIL}).
-
-  // Expressions
-  Expr ::= BinaryExpr1 + BinaryExpr2 + BinaryExpr3 + ModelExpr + BoolExpr.
-  BinaryExpr1 ::= new (op: Operator, left: Label, right: any Label).
-  BinaryExpr2 ::= new (op: Operator, left: Label, right: any FormulaBuiltInType).
-  BinaryExpr3 ::= new (op: Operator, left: any Count, right: any Label + Integer).
-  ModelExpr ::= new (type: Type, labels: Labels).
-  BoolExpr ::= new (label: Label).
-
-  // Interpreted functions
-  InterpretedFunc ::= Count + Min + Max.
-  // Cannot have nested Count function inside Count function due to scope access.
-  // Conforms: label must also occur in Body.
-  Count ::= new (label: Label, body: any Body).
-  Min ::= new (x: Integer, y: Integer).
-  Max ::= new (x: Integer, y: Integer).
-
-  Body ::= new (cur: any Expr, index: Integer, nxt: any Body + {NIL}).
-  Head ::= new (cur: ModelExpr + BoolExpr, index: Integer, nxt: any ModelExpr + BoolExpr + {NIL}).
-  Rule ::= new (head: Head, body: Body).
-
-  // TODO: Find out why FORMULA cannot infer subterm() from nested ground terms like Labels(..., Labels()).
-  // Many List interpreted functions are not implemented in FORMULA, so constructor Subterm() is defined for all list of different types
-  LabelsSubterm ::= (Labels, Labels).
-  LabelsSubterm(m, m) :- m is Labels(_,_,_).
-  LabelsSubterm(m, n) :- m is Labels(_,_,n), n is Labels(_,_,_).
-  LabelsSubterm(a, c) :- LabelsSubterm(a, b), LabelsSubterm(b, c).
-
-  BodySubterm ::= (Body, Body).
-  BodySubterm(m, m) :- m is Body(_,_,_).
-  BodySubterm(m, n) :- m is Body(_,_,n), n is Body(_,_,_).
-  BodySubterm(a, c) :- BodySubterm(a, b), BodySubterm(b, c).
-
-  EnumListSubterm ::= (EnumList, EnumList).
-  EnumListSubterm(m, m) :- m is EnumList(_,_).
-  EnumListSubterm(m, n) :- m is EnumList(_,n), n is EnumList(_,_).
-  EnumListSubterm(a, c) :- EnumListSubterm(a, b), EnumListSubterm(b, c).
-
-  UnionListSubterm ::= (UnionList, UnionList).
-  UnionListSubterm(m, m) :- m is UnionList(_,_).
-  UnionListSubterm(m, n) :- m is UnionList(_,n), n is UnionList(_,_).
-  UnionListSubterm(a, c) :- UnionListSubterm(a, b), UnionListSubterm(b, c).
-
-  // Conforms ...
 }
 
 
@@ -323,7 +339,7 @@ model tenMachineFormulaQueries of Formula
   body_2 is Body(binaryExpr_1, 2, NIL).
 
   head is Head(boolExpr_0, 0, NIL).
-  wrongMultiplicityRule is Rule(head, body_0).
+  wrongMultiplicityRule is Rule("WrongMultiplicity", head, body_0).
 
   // Models for Formula rule: not6b :- n is Node, m is MetaEdge, NodeInstanceOf(m.dst,n), m.ms.high != "*", count({s|s is Node, e is Edge (_,m,s,n)}) > m.ms.high.
 
@@ -360,7 +376,66 @@ model tenMachineFormulaQueries of Formula
   not6b is Label("not6b", Boolean, NIL).
   not6b_boolExpr_0 is BoolExpr(not6b).
   not6b_head is Head(not6b_boolExpr_0, 0, NIL).
-  not6b_rule is Rule(not6b_head, not6b_body).
+  not6b_rule is Rule("not6b", not6b_head, not6b_body).
+}
+
+
+
+model tenMachineGraphQueries of Gremlin
+{
+  // Graph queries for Formula rule: WrongMultiplicity :- Multiplicity(low,high), high != "*", low > high.
+  //  g.V().matchStep(
+  //    __.as("low").Has("type", "Multiplicity").Has("domain", "WebGME").in("ARG_0").as("0_instance_of_M"),
+  //    __.as("high").Has("type", "Multiplicity").Has("domain", "WebGME").in("ARG_1").as("0_instance_of_M"),
+  //    __.as("high").values("value").is(P.neq(*)),
+  //    __.as("low").values("value").as("low_value").
+  //    __.as("high").values("value").as("high_value"),
+  //    __.where("low_value", P.Gt("high_value"))
+  //  ).select("low", "high");
+
+  g is VariableDecl("g", v_step).
+  v_step is VStep(NIL, match_step).
+  match_step is MatchStep("WrongMultiplicity", select_step).
+  select_step is SelectStep(Strings("low", 0, Strings("high", 1, NIL)), NIL).
+
+  instructions is Instructions(instruction_0_0, instructions_1).
+  instructions_1 is Instructions(instruction_1_0, instructions_2).
+  instructions_2 is Instructions(instruction_2_0, instructions_3).
+  instructions_3 is Instructions(instruction_3_0, instructions_4).
+  instructions_4 is Instructions(instruction_4_0, instructions_5).
+  instructions_5 is Instructions(instruction_5_0, NIL).
+
+  MatchStepContainsInstruction(match_step, instruction_0_0).
+  instruction_0_0 is AsStep("low", instruction_0_1).
+  instruction_0_1 is HasStep("type", "Multiplicity", instruction_0_2).
+  instruction_0_2 is HasStep("domain", "WebGME", instruction_0_3).
+  instruction_0_3 is InVStep("ARG_0", instruction_0_4).
+  instruction_0_4 is AsStep("0_instance_of_M", NIL).
+
+  MatchStepContainsInstruction(match_step, instruction_1_0).
+  instruction_1_0 is AsStep("high", instruction_1_1).
+  instruction_1_1 is HasStep("type", "Multiplicity", instruction_1_2).
+  instruction_1_2 is HasStep("domain", "WebGME", instruction_1_3).
+  instruction_1_3 is InVStep("ARG_1", instruction_1_4).
+  instruction_1_4 is AsStep("0_instance_of_M", NIL).
+
+  MatchStepContainsInstruction(match_step, instruction_2_0).
+  instruction_2_0 is AsStep("high", instruction_2_1).
+  instruction_2_1 is ValuesStep("value", instruction_2_2).
+  instruction_2_2 is IsStep(Predicate(NEQ, "*")).
+
+  MatchStepContainsInstruction(match_step, instruction_3_0).
+  instruction_3_0 is AsStep("high", instruction_3_1).
+  instruction_3_1 is ValuesStep("value", instruction_3_2).
+  instruction_3_2 is AsStep("high_value", NIL).
+
+  MatchStepContainsInstruction(match_step, instruction_4_0).
+  instruction_4_0 is AsStep("low", instruction_4_1).
+  instruction_4_1 is ValuesStep("value", instruction_4_2).
+  instruction_4_2 is AsStep("low_value", NIL).
+
+  MatchStepContainsInstruction(match_step, instruction_5_0).
+  instruction_5_0 is WhereStep("low_value", Predicate(GT, "high_value")).
 }
 
 
