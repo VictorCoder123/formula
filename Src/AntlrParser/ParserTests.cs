@@ -3,8 +3,17 @@ using Xunit;
 
 namespace AntlrParser
 {
-    public class UnitTest1
+    public class ParserTests
     {
+        private FormulaParser parser;
+        private FormulaLexer lexer;
+        private FormulaErrorListener errorListener;
+
+        private void setup(string input)
+        {
+
+        }
+
         [Fact]
         public void Test1()
         {

@@ -8,7 +8,7 @@ namespace AntlrParser
 {
     class Program
     {
-        public static void Main2(string[] args)
+        public static void Main(string[] args)
         {
             String input = "";
             ICharStream stream = new AntlrInputStream(input);
@@ -16,6 +16,7 @@ namespace AntlrParser
             ITokenStream tokens = new CommonTokenStream(lexer);
             FormulaParser parser = new FormulaParser(tokens);
             parser.BuildParseTree = true;
+            
             
         }
     }
