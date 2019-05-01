@@ -10,6 +10,9 @@ namespace AntlrParser
 {  
     public class FormulaVisitor : FormulaBaseVisitor<int>
     {
-        
+        public override int VisitAtom([NotNull] FormulaParser.AtomContext context)
+        {
+            return base.VisitAtom(context);
+        }
     }
 }
