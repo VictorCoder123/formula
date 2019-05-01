@@ -106,15 +106,15 @@ constraint
 	;
 
 funcTermList 
-	: funcTerm 
-	| funcTerm COMMA funcTermList ;
-
+	: funcTerm						
+	| funcTerm COMMA funcTermList   
+	;
 
 funcTerm 
-	: atom
-	| unOp funcTerm
-	| funcTerm binOp funcTerm
-	| Id LPAREN funcTermList RPAREN
+	: atom							# PrimitiveExpr
+	| unOp funcTerm					# UnaryExpr
+	| funcTerm binOp funcTerm		# BinaryExpr
+	| Id LPAREN funcTermList RPAREN # FunCallExpr
 	;
 
 atom : Id | constant ;

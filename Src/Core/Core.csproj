@@ -344,7 +344,9 @@
     <MPLexCompile Include="API\Parser\lexer.lex" />
     <MPPGCompile Include="API\Parser\parser.y" />
   </ItemGroup>
-  <ItemGroup />
+  <ItemGroup>
+    <Folder Include="API\Nodes\Declarations\" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!--
     =======================================================================================================

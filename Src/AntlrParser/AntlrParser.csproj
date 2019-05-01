@@ -37,11 +37,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Antlr4 Update="Formula.g4">
+    <Antlr4 Update="Grammar\Formula.g4">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
       <Generator>MSBuild:Compile</Generator>
       <Listener>true</Listener>
       <Visitor>true</Visitor>
+      <CustomToolNamespace>Microsoft.Formula.AntlrParser</CustomToolNamespace>
     </Antlr4>
   </ItemGroup>
 
@@ -49,6 +50,10 @@
     <None Update="Formula.g4">
       <Generator>MSBuild:Compile</Generator>
     </None>
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="AST\Expressions\" />
   </ItemGroup>
 
 </Project>

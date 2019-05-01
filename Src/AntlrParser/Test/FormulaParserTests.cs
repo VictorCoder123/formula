@@ -4,8 +4,9 @@ using Xunit.Abstractions;
 using Antlr4;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
+using Microsoft.Formula.AntlrParser.AST;
 
-namespace AntlrParser
+namespace Microsoft.Formula.AntlrParser
 {
     public class FormulaParserTests
     {
@@ -32,7 +33,9 @@ namespace AntlrParser
             ParserRuleContext context = parser.program();
             IParseTree tree = context.children[0];
             output.WriteLine(tree.ToStringTree());
-            
+
+            ExprVisitor visitor = new ExprVisitor();
+            Node node = visitor.Visit(context);
         }
 
         [Fact]

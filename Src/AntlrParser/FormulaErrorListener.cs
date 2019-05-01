@@ -4,7 +4,7 @@ using System.Text;
 using Antlr4.Runtime;
 using Antlr4.Runtime.Tree;
 
-namespace AntlrParser
+namespace Microsoft.Formula.AntlrParser
 {
     class FormulaErrorListener : FormulaBaseListener
     {
