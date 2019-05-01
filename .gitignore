@@ -3,6 +3,7 @@
 
 # Additional ignores
 **/.vs/
+**/packages/
 
 # User-specific files
 *.suo
